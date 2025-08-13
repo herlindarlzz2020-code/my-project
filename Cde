@@ -111,3 +111,72 @@ function JobSeekerDashboard() {
                   <input name="phone" value={profile.phone} onChange={handleProfileChange} />
                 </div>
                 <button onClick={handleProfileSave}>Save</button>
+
+
+</div>
+            ) : (
+              <p>Loading profile...</p>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Row 2: Job Search */}
+      <section className="dashboard-grid">
+        <div className="dashboard-section">
+          <h3>🔍 Job Search</h3>
+          <div className="dashboard-card">
+            {jobs.length === 0 ? (
+              <p>No jobs available.</p>
+            ) : (
+              jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="job-card"
+                  onClick={() => navigate(`/jobs/${job.id}`)}
+                  style={{ border: '1px solid #ccc', padding: '10px', marginBottom: '10px', cursor: 'pointer' }}
+                >
+                  <p><strong>{job.title}</strong> at {job.company}</p>
+                  <p>Location: {job.location}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Row 3: My Applications */}
+      <section className="dashboard-grid">
+        <div className="dashboard-section">
+          <h3>📝 My Applications</h3>
+          <div className="dashboard-card">
+            {applications.length === 0 ? (
+              <p>No applications yet.</p>
+            ) : (
+              applications.map((app) => (
+                <div
+                  key={app.id}
+                  className="application-card"
+                  style={{ borderBottom: '1px solid #ccc', padding: '10px 0' }}
+                >
+                  <p><strong>Job:</strong> {app.jobTitle}</p>
+                  <p><strong>Status:</strong> {app.status}</p>
+                  <p><strong>Applied On:</strong> {new Date(app.appliedOn).toLocaleDateString()}</p>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA Button */}
+      <div style={{ textAlign: 'center', marginTop: '20px', position: 'relative', zIndex: 1 }}>
+        <button className="cta-button" onClick={() => navigate('/jobs')}>
+          🔍 Explore More Jobs
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default JobSeekerDashboard;
