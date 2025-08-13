@@ -1,0 +1,113 @@
+// src/pages/JobSeekerDashboard.jsx
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+import logo from '../assets/career-crafter-logo.jpeg';
+import './JobSeekerDashboard.css';
+
+function JobSeekerDashboard() {
+  const [profile, setProfile] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const navigate = useNavigate();
+  const userId = localStorage.getItem('userId'); // store userId on login
+  const token = localStorage.getItem('token');   // optional if backend uses JWT
+
+  // Set default Authorization header
+  axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+  // Fetch profile
+  const fetchProfile = async () => {
+    try {
+      const res = await axios.get(`http://localhost:5290/api/jobseeker/${userId}`);
+      setProfile(res.data);
+    } catch (err) {
+      console.error('Error fetching profile:', err);
+    }
+  };
+
+  // Fetch applications
+  const fetchApplications = async () => {
+    try {
+      const res = await axios.get(`http://localhost:5290/api/applications/${userId}`);
+      setApplications(res.data);
+    } catch (err) {
+      console.error('Error fetching applications:', err);
+    }
+  };
+
+  // Fetch jobs
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get('http://localhost:5290/api/jobs');
+      setJobs(res.data);
+    } catch (err) {
+      console.error('Error fetching jobs:', err);
+    }
+  };
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchProfile(), fetchApplications(), fetchJobs()]);
+      setLoading(false);
+    };
+    loadData();
+  }, []);
+
+  // Handle profile edit
+  const handleProfileChange = (e) => {
+    setProfile({ ...profile, [e.target.name]: e.target.value });
+  };
+
+  const handleProfileSave = async () => {
+    try {
+      await axios.put(`http://localhost:5290/api/jobseeker/${profile.id}`, profile);
+      alert('Profile updated successfully!');
+    } catch (err) {
+      console.error(err);
+      alert('Error updating profile.');
+    }
+  };
+
+  if (loading) return <p>Loading dashboard...</p>;
+
+  return (
+    <div className="dashboard-container">
+      <div className="dashboard-overlay" />
+
+      {/* Header */}
+      <header className="dashboard-header">
+        <div className="logo-title">
+          <img src={logo} alt="CareerCrafter" className="dashboard-logo" />
+          <h2>Welcome, {profile?.name || 'Job Seeker'}!</h2>
+        </div>
+      </header>
+
+      <p className="dashboard-subtext">
+        Manage your profile, search jobs, and track your applications.
+      </p>
+
+      {/* Row 1: Edit Profile */}
+      <section className="dashboard-grid">
+        <div className="dashboard-section">
+          <h3>👤 Edit Profile</h3>
+          <div className="dashboard-card">
+            {profile ? (
+              <div className="profile-form">
+                <div>
+                  <label>Name:</label>
+                  <input name="name" value={profile.name} onChange={handleProfileChange} />
+                </div>
+                <div>
+                  <label>Email:</label>
+                  <input name="email" type="email" value={profile.email} onChange={handleProfileChange} />
+                </div>
+                <div>
+                  <label>Phone:</label>
+                  <input name="phone" value={profile.phone} onChange={handleProfileChange} />
+                </div>
+                <button onClick={handleProfileSave}>Save</button>
