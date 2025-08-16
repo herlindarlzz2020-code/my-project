@@ -1,0 +1,153 @@
+// src/pages/EmployerDashboard.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+import logo from '../assets/career-crafter-logo.jpeg';
+
+const EmployerDashboard = () => {
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState([]);
+  const [newJob, setNewJob] = useState({ title: "", description: "", location: "" });
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get("http://localhost:5290/api/Employer/jobs");
+      setJobs(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const createJob = async () => {
+    try {
+      await axios.post("http://localhost:5290/api/Employer/jobs", newJob);
+      setNewJob({ title: "", description: "", location: "" });
+      fetchJobs();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <header className="flex justify-between items-center mb-6">
+        <img src={logo} alt="CareerCrafter" className="w-24" />
+        <button onClick={() => navigate("/login")} className="bg-red-500 text-white px-4 py-2 rounded">
+          Logout
+        </button>
+      </header>
+
+      <h1 className="text-2xl font-bold mb-4">Employer Dashboard</h1>
+
+      {/* Add New Job */}
+      <div className="mb-6">
+        <h2 className="text-xl mb-2">Post a New Job</h2>
+        <input
+          className="border p-2 mr-2"
+          placeholder="Job Title"
+          value={newJob.title}
+          onChange={(e) => setNewJob({ ...newJob, title: e.target.value })}
+        />
+        <input
+          className="border p-2 mr-2"
+          placeholder="Location"
+          value={newJob.location}
+          onChange={(e) => setNewJob({ ...newJob, location: e.target.value })}
+        />
+        <input
+          className="border p-2 mr-2"
+          placeholder="Description"
+          value={newJob.description}
+          onChange={(e) => setNewJob({ ...newJob, description: e.target.value })}
+        />
+        <button className="bg-blue-500 text-white px-4 py-2 rounded" onClick={createJob}>
+          Post Job
+        </button>
+      </div>
+
+      {/* Job List */}
+      <h2 className="text-xl mb-2">Your Job Postings</h2>
+      <ul>
+        {jobs.map((job) => (
+          <li key={job.jobId} className="border p-4 mb-2 rounded">
+            <h3 className="font-bold">{job.title}</h3>
+            <p>{job.description}</p>
+            <p className="text-sm text-gray-600">{job.location}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default EmployerDashboard;// src/pages/JobSeekerDashboard.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+
+import logo from '../assets/career-crafter-logo.jpeg';
+
+const JobSeekerDashboard = () => {
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState([]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get("http://localhost:5290/api/JobSeeker/jobs");
+      setJobs(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const applyJob = async (jobId) => {
+    try {
+      await axios.post(`http://localhost:5290/api/JobSeeker/apply/${jobId}`);
+      alert("Applied Successfully!");
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  return (
+    <div className="p-6">
+      <header className="flex justify-between items-center mb-6">
+        <img src={logo} alt="CareerCrafter" className="w-24" />
+        <button onClick={() => navigate("/login")} className="bg-red-500 text-white px-4 py-2 rounded">
+          Logout
+        </button>
+      </header>
+
+      <h1 className="text-2xl font-bold mb-4">Job Seeker Dashboard</h1>
+
+      {/* Job List */}
+      <h2 className="text-xl mb-2">Available Jobs</h2>
+      <ul>
+        {jobs.map((job) => (
+          <li key={job.jobId} className="border p-4 mb-2 rounded">
+            <h3 className="font-bold">{job.title}</h3>
+            <p>{job.description}</p>
+            <p className="text-sm text-gray-600">{job.location}</p>
+            <button
+              onClick={() => applyJob(job.jobId)}
+              className="bg-green-500 text-white px-4 py-2 rounded mt-2"
+            >
+              Apply
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
