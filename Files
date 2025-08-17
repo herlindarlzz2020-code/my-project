@@ -1,3 +1,68 @@
+// src/App.js
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+
+// Pages
+import Register from "./pages/Register";
+import Login from "./pages/Login";
+import EmployerDashboard from "./pages/EmployerDashboard";
+import JobSeekerDashboard from "./pages/JobSeekerDashboard";
+import PostJob from "./pages/PostJob";
+
+function PrivateRoute({ children }) {
+  const { user } = useAuth();
+  return user ? children : <Navigate to="/login" />;
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/" element={<Navigate to="/login" />} />
+          <Route path="/register" element={<Register />} />
+          <Route path="/login" element={<Login />} />
+
+          {/* Employer Protected Routes */}
+          <Route
+            path="/employer/dashboard"
+            element={
+              <PrivateRoute>
+                <EmployerDashboard />
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/employer/post-job"
+            element={
+              <PrivateRoute>
+                <PostJob />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Job Seeker Protected Routes */}
+          <Route
+            path="/jobseeker/dashboard"
+            element={
+              <PrivateRoute>
+                <JobSeekerDashboard />
+              </PrivateRoute>
+            }
+          />
+
+          {/* Catch-all for undefined routes */}
+          <Route path="*" element={<h1>404 - Page Not Found</h1>} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
+
 // src/components/PostJobForm.jsx
 import React, { useEffect, useState } from "react";
 import API_BASE_URL from "../apiConfig";
