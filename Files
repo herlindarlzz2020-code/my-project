@@ -1,0 +1,219 @@
+// src/components/PostJobForm.jsx
+import React, { useEffect, useState } from "react";
+import API_BASE_URL from "../apiConfig";
+
+/**
+ * PostJobForm
+ * Props:
+ *  - initial (object) optional: job to edit
+ *  - onSaved(): callback after save
+ *  - onCancel(): cancel
+ */
+export default function PostJobForm({ initial = null, onSaved = () => {}, onCancel = () => {} }) {
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    EmployerId: Number(localStorage.getItem("userId")) || 0,
+    Title: "",
+    CompanyName: "",
+    Salary: "",
+    Location: "",
+    Description: "",
+    Codification: "",
+    ApplicationInstructions: "",
+    IsActive: true,
+  });
+
+  useEffect(() => {
+    if (initial) {
+      setForm((f) => ({
+        ...f,
+        EmployerId: initial.EmployerId ?? initial.employerId ?? f.EmployerId,
+        Title: initial.Title ?? initial.title ?? "",
+        CompanyName: initial.CompanyName ?? initial.companyName ?? "",
+        Salary: initial.Salary ?? initial.salary ?? "",
+        Location: initial.Location ?? initial.location ?? "",
+        Description: initial.Description ?? initial.description ?? "",
+        Codification: initial.Codification ?? initial.codification ?? "",
+        ApplicationInstructions: initial.ApplicationInstructions ?? initial.applicationInstructions ?? "",
+        IsActive: initial.IsActive ?? initial.isActive ?? true,
+      }));
+    }
+  }, [initial]);
+
+  function update(key, value) {
+    setForm((s) => ({ ...s, [key]: value }));
+  }
+
+  const tokenHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token") || ""}` });
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      const payload = {
+        EmployerId: Number(form.EmployerId),
+        Title: String(form.Title),
+        CompanyName: String(form.CompanyName),
+        Salary: form.Salary === "" ? 0 : Number(form.Salary),
+        Location: String(form.Location || ""),
+        Description: String(form.Description || ""),
+        Codification: String(form.Codification || ""),
+        ApplicationInstructions: String(form.ApplicationInstructions || ""),
+        IsActive: !!form.IsActive,
+      };
+
+      if (initial && (initial.JobId || initial.id)) {
+        const id = initial.JobId || initial.id;
+        await fetch(`${API_BASE_URL}/api/Job/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...tokenHeader() },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetch(`${API_BASE_URL}/api/Job`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...tokenHeader() },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      onSaved();
+    } catch (err) {
+      console.error("PostJobForm submit:", err);
+      alert("Failed to save job. See console.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ border: "1px solid #e6e6e6", padding: 12, borderRadius: 8 }}>
+      <div style={{ display: "grid", gap: 10 }}>
+        <div>
+          <label>Job Title *</label>
+          <input required value={form.Title} onChange={(e) => update("Title", e.target.value)} style={{ width: "100%", padding: 8 }} />
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <input placeholder="Company" value={form.CompanyName} onChange={(e) => update("CompanyName", e.target.value)} style={{ flex: 1, padding: 8 }} />
+          <input placeholder="Salary" type="number" value={form.Salary} onChange={(e) => update("Salary", e.target.value)} style={{ width: 140, padding: 8 }} />
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <input placeholder="Location" value={form.Location} onChange={(e) => update("Location", e.target.value)} style={{ flex: 1, padding: 8 }} />
+          <input placeholder="Codification" value={form.Codification} onChange={(e) => update("Codification", e.target.value)} style={{ width: 160, padding: 8 }} />
+        </div>
+
+        <div>
+          <label>Description</label>
+          <textarea value={form.Description} onChange={(e) => update("Description", e.target.value)} rows={4} style={{ width: "100%", padding: 8 }} />
+        </div>
+
+        <div>
+          <label>Application Instructions</label>
+          <textarea value={form.ApplicationInstructions} onChange={(e) => update("ApplicationInstructions", e.target.value)} rows={2} style={{ width: "100%", padding: 8 }} />
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <label style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input type="checkbox" checked={form.IsActive} onChange={(e) => update("IsActive", e.target.checked)} />
+            <span>Active / Published</span>
+          </label>
+
+          <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+            <button type="button" onClick={onCancel} style={{ padding: "8px 12px" }}>Cancel</button>
+            <button type="submit" disabled={saving} style={{ padding: "8px 12px", background: "#2563eb", color: "#fff", border: "none" }}>
+              {saving ? "Saving..." : initial ? "Update Job" : "Create Job"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// src/components/CandidateModal.jsx
+import React from "react";
+
+/**
+ * candidate = { profile: {...}, resume: {...} }
+ */
+export default function CandidateModal({ candidate, onClose = () => {} }) {
+  if (!candidate) return null;
+  const profile = candidate.profile || {};
+  const resume = candidate.resume || null;
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)",
+      display: "grid", placeItems: "center", zIndex: 1200
+    }}>
+      <div style={{ width: 820, maxWidth: "96%", background: "#fff", padding: 16, borderRadius: 8 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <h3 style={{ margin: 0 }}>Candidate Profile</h3>
+          <div><button onClick={onClose}>Close</button></div>
+        </div>
+
+        <div style={{ marginTop: 12, display: "grid", gap: 8 }}>
+          <div><b>Name:</b> {profile.FirstName || profile.firstName || ""} {profile.LastName || profile.lastName || ""}</div>
+          <div><b>Email:</b> {profile.Email || profile.email || ""}</div>
+          <div><b>Phone:</b> {profile.Phone || profile.phone || ""}</div>
+          {profile.Qualification && <div><b>Qualification:</b> {profile.Qualification}</div>}
+          {profile.Skills && <div><b>Skills:</b> {Array.isArray(profile.Skills) ? profile.Skills.join(", ") : profile.Skills}</div>}
+          {resume && (
+            <div>
+              <b>Resume:</b> <a href={resume.ResumePath || resume.filePath || resume.url} target="_blank" rel="noreferrer">Open</a>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// src/components/ResumeUpload.jsx
+import React, { useState } from "react";
+import API_BASE_URL from "../apiConfig";
+
+export default function ResumeUpload({ onUploaded = () => {} }) {
+  const [file, setFile] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const jobSeekerId = localStorage.getItem("jobSeekerId") || localStorage.getItem("userId");
+
+  const tokenHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token") || ""}` });
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!file) return alert("Select a resume file (.pdf/.doc/.docx)");
+    if (!jobSeekerId) return alert("Please create a JobSeeker profile first.");
+
+    setLoading(true);
+    try {
+      const fd = new FormData();
+      fd.append("JobSeekerId", jobSeekerId);
+      fd.append("file", file);
+
+      await fetch(`${API_BASE_URL}/api/Resume`, {
+        method: "POST",
+        headers: tokenHeader(),
+        body: fd,
+      });
+
+      setFile(null);
+      onUploaded();
+      alert("Resume uploaded");
+    } catch (err) {
+      console.error("Resume upload error:", err);
+      alert("Upload failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <input type="file" accept=".pdf,.doc,.docx" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+      <button type="submit" disabled={loading} style={{ padding: "8px 12px" }}>{loading ? "Uploading..." : "Upload Resume"}</button>
+    </form>
+  );
+}
