@@ -1,0 +1,847 @@
+// src/Pages/LoginPage.js
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import axios from "axios";
+import { jwtDecode } from "jwt-decode";
+import { Container, Card, Form, Button, Alert } from "react-bootstrap";
+import API_BASE_URL from "../apiConfig";
+import { useAuth } from "../Context/AuthContext";
+
+const LoginPage = () => {
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [error, setError] = useState("");
+
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      const res = await axios.post(`${API_BASE_URL}/api/Auth/login`, {
+        email: form.email,
+        password: form.password,
+      });
+
+      const { token } = res.data;
+      const decoded = jwtDecode(token);
+
+      const role =
+        decoded[
+          "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+        ]?.toLowerCase() || "";
+
+      const userId = decoded[
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
+      ];
+
+      login(token, userId, role); // save in context
+
+      // Navigate based on role
+      if (role === "employer") {
+        navigate("/employer/dashboard");
+      } else if (role === "jobseeker") {
+        navigate("/jobseeker/dashboard");
+      } else {
+        setError("Unknown role in token.");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Invalid email or password.");
+    }
+  };
+
+  return (
+    <Container className="d-flex justify-content-center align-items-center min-vh-100">
+      <Card className="p-4 w-100" style={{ maxWidth: "400px" }}>
+        <h2 className="text-center mb-4">Login</h2>
+        {error && <Alert variant="danger">{error}</Alert>}
+        <Form onSubmit={handleSubmit}>
+          <Form.Group className="mb-3">
+            <Form.Label>Email</Form.Label>
+            <Form.Control
+              name="email"
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              required
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Password</Form.Label>
+            <Form.Control
+              name="password"
+              type="password"
+              value={form.password}
+              onChange={handleChange}
+              required
+            />
+          </Form.Group>
+
+          <Button type="submit" className="w-100">
+            Login
+          </Button>
+        </Form>
+      </Card>
+    </Container>
+  );
+};
+
+export default LoginPage;
+
+
+// src/Context/AuthContext.js
+import React, { createContext, useContext, useState, useEffect } from "react";
+
+const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [auth, setAuth] = useState({
+    token: null,
+    userId: null,
+    role: null,
+  });
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    const storedAuth = localStorage.getItem("authData");
+    if (storedAuth) {
+      setAuth(JSON.parse(storedAuth));
+    }
+  }, []);
+
+  const login = (token, userId, role) => {
+    const authData = { token, userId, role };
+    setAuth(authData);
+    localStorage.setItem("authData", JSON.stringify(authData));
+  };
+
+  const logout = () => {
+    setAuth({ token: null, userId: null, role: null });
+    localStorage.removeItem("authData");
+  };
+
+  return (
+    <AuthContext.Provider value={{ auth, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => useContext(AuthContext);
+
+
+// src/Components/ProtectedRoute.js
+import React from "react";
+import { Navigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { auth } = useAuth();
+
+  if (!auth.token) {
+    // not logged in → redirect to login
+    return <Navigate to="/login" replace />;
+  }
+
+  if (allowedRoles && !allowedRoles.includes(auth.role)) {
+    // logged in but role not allowed → redirect to login
+    return <Navigate to="/login" replace />;
+  }
+
+  return children;
+};
+
+export default ProtectedRoute;
+
+
+// src/App.js
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./Context/AuthContext";
+
+import LoginPage from "./Pages/LoginPage";
+import EmployerDashboard from "./Pages/EmployerDashboard";
+import JobSeekerDashboard from "./Pages/JobSeekerDashboard";
+import ProtectedRoute from "./Components/ProtectedRoute";
+
+const App = () => {
+  return (
+    <AuthProvider>
+      <Router>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+
+          {/* Employer protected route */}
+          <Route
+            path="/employer/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["employer"]}>
+                <EmployerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* JobSeeker protected route */}
+          <Route
+            path="/jobseeker/dashboard"
+            element={
+              <ProtectedRoute allowedRoles={["jobseeker"]}>
+                <JobSeekerDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Default fallback */}
+          <Route path="*" element={<LoginPage />} />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+};
+
+export default App;
+
+
+// src/Pages/EmployerDashboard.js
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+
+const EmployerDashboard = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Employer Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-md transition"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Dashboard content goes here */}
+      <p className="text-gray-700">Welcome! Here you can manage job postings and track applicants.</p>
+    </div>
+  );
+};
+
+export default EmployerDashboard;
+
+
+// src/Pages/JobSeekerDashboard.js
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+
+const JobSeekerDashboard = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 p-6">
+      {/* Header */}
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">JobSeeker Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow-md transition"
+        >
+          Logout
+        </button>
+      </div>
+
+      {/* Dashboard content goes here */}
+      <p className="text-gray-700">Welcome! Here you can search for jobs, apply, and manage your applications.</p>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
+
+// src/Pages/EmployerDashboard.js
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+
+const EmployerDashboard = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navbar */}
+      <header className="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-800">Employer Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+        >
+          Logout
+        </button>
+      </header>
+
+      {/* Page Content */}
+      <main className="p-6">
+        <p className="text-gray-700">
+          Welcome! Here you can manage job postings and track applicants.
+        </p>
+      </main>
+    </div>
+  );
+};
+
+export default EmployerDashboard;
+
+
+// src/Pages/JobSeekerDashboard.js
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+
+const JobSeekerDashboard = () => {
+  const { logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Top Navbar */}
+      <header className="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-800">JobSeeker Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+        >
+          Logout
+        </button>
+      </header>
+
+      {/* Page Content */}
+      <main className="p-6">
+        <p className="text-gray-700">
+          Welcome! Here you can search for jobs, apply, and manage your applications.
+        </p>
+      </main>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
+
+// src/Pages/EmployerDashboard.js
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+import axios from "axios";
+
+const EmployerDashboard = () => {
+  const { auth, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const [jobs, setJobs] = useState([]);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    location: "",
+    industry: "",
+    instructions: "",
+  });
+  const [editingJobId, setEditingJobId] = useState(null);
+
+  // 🔹 Logout
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  // 🔹 Fetch Employer Jobs
+  const fetchJobs = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5290/api/employer/${auth.userId}/jobs`,
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      setJobs(res.data);
+    } catch (err) {
+      console.error("Error fetching jobs:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchJobs();
+  }, []);
+
+  // 🔹 Handle Input Change
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  // 🔹 Submit Job (Create or Update)
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (editingJobId) {
+        // update existing job
+        await axios.put(
+          `http://localhost:5290/api/employer/jobs/${editingJobId}`,
+          form,
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+      } else {
+        // create new job
+        await axios.post(
+          "http://localhost:5290/api/employer/jobs",
+          { ...form, employerId: auth.userId },
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+      }
+      setForm({ title: "", description: "", location: "", industry: "", instructions: "" });
+      setEditingJobId(null);
+      fetchJobs();
+    } catch (err) {
+      console.error("Error saving job:", err);
+    }
+  };
+
+  // 🔹 Edit Job
+  const handleEdit = (job) => {
+    setForm(job);
+    setEditingJobId(job.id);
+  };
+
+  // 🔹 Delete Job
+  const handleDelete = async (jobId) => {
+    try {
+      await axios.delete(
+        `http://localhost:5290/api/employer/jobs/${jobId}`,
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      fetchJobs();
+    } catch (err) {
+      console.error("Error deleting job:", err);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Navbar */}
+      <header className="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-800">Employer Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+        >
+          Logout
+        </button>
+      </header>
+
+      {/* Main Content */}
+      <main className="p-6 space-y-8">
+        {/* Job Posting Form */}
+        <section className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">
+            {editingJobId ? "Edit Job" : "Post a New Job"}
+          </h2>
+          <form onSubmit={handleSubmit} className="grid gap-4">
+            <input
+              type="text"
+              name="title"
+              value={form.title}
+              onChange={handleChange}
+              placeholder="Job Title"
+              className="p-2 border rounded"
+              required
+            />
+            <textarea
+              name="description"
+              value={form.description}
+              onChange={handleChange}
+              placeholder="Job Description"
+              className="p-2 border rounded"
+              required
+            />
+            <input
+              type="text"
+              name="location"
+              value={form.location}
+              onChange={handleChange}
+              placeholder="Location"
+              className="p-2 border rounded"
+              required
+            />
+            <input
+              type="text"
+              name="industry"
+              value={form.industry}
+              onChange={handleChange}
+              placeholder="Industry"
+              className="p-2 border rounded"
+            />
+            <textarea
+              name="instructions"
+              value={form.instructions}
+              onChange={handleChange}
+              placeholder="Application Instructions"
+              className="p-2 border rounded"
+            />
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            >
+              {editingJobId ? "Update Job" : "Post Job"}
+            </button>
+          </form>
+        </section>
+
+        {/* Job Listings */}
+        <section className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">Your Job Listings</h2>
+          {jobs.length === 0 ? (
+            <p className="text-gray-500">No jobs posted yet.</p>
+          ) : (
+            <table className="w-full border-collapse border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border p-2">Title</th>
+                  <th className="border p-2">Location</th>
+                  <th className="border p-2">Industry</th>
+                  <th className="border p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {jobs.map((job) => (
+                  <tr key={job.id}>
+                    <td className="border p-2">{job.title}</td>
+                    <td className="border p-2">{job.location}</td>
+                    <td className="border p-2">{job.industry}</td>
+                    <td className="border p-2 flex gap-2">
+                      <button
+                        onClick={() => handleEdit(job)}
+                        className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(job.id)}
+                        className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default EmployerDashboard;
+
+
+
+// src/Pages/JobSeekerDashboard.js
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+import axios from "axios";
+
+const JobSeekerDashboard = () => {
+  const { auth, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const [profile, setProfile] = useState(null);
+  const [profileForm, setProfileForm] = useState({
+    fullName: "",
+    education: "",
+    experience: "",
+    skills: "",
+  });
+
+  const [jobs, setJobs] = useState([]);
+  const [search, setSearch] = useState({ title: "", location: "", industry: "" });
+
+  const [applications, setApplications] = useState([]);
+
+  // 🔹 Logout
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+  };
+
+  // 🔹 Fetch Profile
+  const fetchProfile = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5290/api/jobseeker/profile/${auth.userId}`,
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      setProfile(res.data);
+      setProfileForm(res.data);
+    } catch (err) {
+      console.error("No profile yet:", err);
+    }
+  };
+
+  // 🔹 Save Profile
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      if (profile) {
+        await axios.put(
+          `http://localhost:5290/api/jobseeker/profile/${auth.userId}`,
+          profileForm,
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+      } else {
+        await axios.post(
+          `http://localhost:5290/api/jobseeker/profile`,
+          { ...profileForm, userId: auth.userId },
+          { headers: { Authorization: `Bearer ${auth.token}` } }
+        );
+      }
+      fetchProfile();
+    } catch (err) {
+      console.error("Error saving profile:", err);
+    }
+  };
+
+  // 🔹 Job Search
+  const searchJobs = async () => {
+    try {
+      const query = `title=${search.title}&location=${search.location}&industry=${search.industry}`;
+      const res = await axios.get(
+        `http://localhost:5290/api/jobs?${query}`,
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      setJobs(res.data);
+    } catch (err) {
+      console.error("Error fetching jobs:", err);
+    }
+  };
+
+  // 🔹 Apply to Job
+  const applyJob = async (jobId) => {
+    try {
+      await axios.post(
+        `http://localhost:5290/api/jobseeker/applications`,
+        { userId: auth.userId, jobId },
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      fetchApplications();
+    } catch (err) {
+      console.error("Error applying to job:", err);
+    }
+  };
+
+  // 🔹 Fetch Applications
+  const fetchApplications = async () => {
+    try {
+      const res = await axios.get(
+        `http://localhost:5290/api/jobseeker/applications/${auth.userId}`,
+        { headers: { Authorization: `Bearer ${auth.token}` } }
+      );
+      setApplications(res.data);
+    } catch (err) {
+      console.error("Error fetching applications:", err);
+    }
+  };
+
+  useEffect(() => {
+    fetchProfile();
+    fetchApplications();
+  }, []);
+
+  // 🔹 Handle Profile Form Input
+  const handleProfileChange = (e) => {
+    setProfileForm({ ...profileForm, [e.target.name]: e.target.value });
+  };
+
+  // 🔹 Handle Search Input
+  const handleSearchChange = (e) => {
+    setSearch({ ...search, [e.target.name]: e.target.value });
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Navbar */}
+      <header className="bg-white shadow-md p-4 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-gray-800">JobSeeker Dashboard</h1>
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition"
+        >
+          Logout
+        </button>
+      </header>
+
+      {/* Main Content */}
+      <main className="p-6 space-y-8">
+        {/* Profile Section */}
+        <section className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">My Profile</h2>
+          <form onSubmit={saveProfile} className="grid gap-4">
+            <input
+              type="text"
+              name="fullName"
+              value={profileForm.fullName}
+              onChange={handleProfileChange}
+              placeholder="Full Name"
+              className="p-2 border rounded"
+              required
+            />
+            <textarea
+              name="education"
+              value={profileForm.education}
+              onChange={handleProfileChange}
+              placeholder="Education"
+              className="p-2 border rounded"
+            />
+            <textarea
+              name="experience"
+              value={profileForm.experience}
+              onChange={handleProfileChange}
+              placeholder="Work Experience"
+              className="p-2 border rounded"
+            />
+            <input
+              type="text"
+              name="skills"
+              value={profileForm.skills}
+              onChange={handleProfileChange}
+              placeholder="Skills (comma separated)"
+              className="p-2 border rounded"
+            />
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+            >
+              Save Profile
+            </button>
+          </form>
+        </section>
+
+        {/* Job Search Section */}
+        <section className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">Search Jobs</h2>
+          <div className="grid md:grid-cols-3 gap-4 mb-4">
+            <input
+              type="text"
+              name="title"
+              value={search.title}
+              onChange={handleSearchChange}
+              placeholder="Job Title"
+              className="p-2 border rounded"
+            />
+            <input
+              type="text"
+              name="location"
+              value={search.location}
+              onChange={handleSearchChange}
+              placeholder="Location"
+              className="p-2 border rounded"
+            />
+            <input
+              type="text"
+              name="industry"
+              value={search.industry}
+              onChange={handleSearchChange}
+              placeholder="Industry"
+              className="p-2 border rounded"
+            />
+          </div>
+          <button
+            onClick={searchJobs}
+            className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+          >
+            Search
+          </button>
+
+          {/* Job Results */}
+          <div className="mt-6 grid gap-4">
+            {jobs.length === 0 ? (
+              <p className="text-gray-500">No jobs found.</p>
+            ) : (
+              jobs.map((job) => (
+                <div key={job.id} className="border rounded p-4 shadow-sm">
+                  <h3 className="font-bold text-lg">{job.title}</h3>
+                  <p className="text-gray-600">{job.location} — {job.industry}</p>
+                  <p className="mt-2">{job.description}</p>
+                  <button
+                    onClick={() => applyJob(job.id)}
+                    className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded"
+                  >
+                    Apply
+                  </button>
+                </div>
+              ))
+            )}
+          </div>
+        </section>
+
+        {/* Applications Section */}
+        <section className="bg-white shadow-md rounded-lg p-6">
+          <h2 className="text-lg font-semibold mb-4">My Applications</h2>
+          {applications.length === 0 ? (
+            <p className="text-gray-500">You haven’t applied to any jobs yet.</p>
+          ) : (
+            <table className="w-full border-collapse border">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="border p-2">Job Title</th>
+                  <th className="border p-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {applications.map((app) => (
+                  <tr key={app.id}>
+                    <td className="border p-2">{app.jobTitle}</td>
+                    <td className="border p-2">{app.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      </main>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
+
