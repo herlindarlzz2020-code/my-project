@@ -1,0 +1,247 @@
+using CareerLync.DTOs;
+using CareerLync.Interfaces;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CareerLync.Controllers
+{
+    [ApiController]
+    [Route("api/[controller]")]
+    [Authorize(Roles = "employer")] //  Only Employers can access JobController
+    public class JobController : ControllerBase
+    {
+        private readonly IJobRepository _jobRepository;
+
+        public JobController(IJobRepository jobRepository)
+        {
+            _jobRepository = jobRepository;
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetAllJobs()
+        {
+            var jobs = await _jobRepository.GetAllJobsAsync();
+            return Ok(jobs);
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetJobById(int id)
+        {
+            var job = await _jobRepository.GetJobByIdAsync(id);
+            if (job == null) return NotFound();
+            return Ok(job);
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CreateJob([FromBody] JobDTO jobDto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var newJob = await _jobRepository.CreateJobAsync(jobDto);
+            return CreatedAtAction(nameof(GetJobById), new { id = newJob.JobId }, newJob);
+        }
+
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateJob(int id, [FromBody] JobDTO jobDto)
+        {
+            if (!ModelState.IsValid) return BadRequest(ModelState);
+            var updatedJob = await _jobRepository.UpdateJobAsync(id, jobDto);
+            if (updatedJob == null) return NotFound();
+            return Ok(updatedJob);
+        }
+
+        [HttpDelete("{id}")]
+        public async Task<IActionResult> DeleteJob(int id)
+        {
+            var result = await _jobRepository.DeleteJobAsync(id);
+            if (!result) return NotFound();
+            return NoContent();
+        }
+    }
+}
+using System;
+using System.ComponentModel.DataAnnotations;
+
+namespace CareerLync.DTOs
+{
+    public class JobDTO
+    {
+        public int JobId { get; set; }
+
+        [Required(ErrorMessage = "EmployerId is required")]
+        public int EmployerId { get; set; }
+
+        [Required(ErrorMessage = "Job title is required")]
+        [MaxLength(100)]
+        public string Title { get; set; }
+
+        [Required(ErrorMessage = "Job description is required")]
+        [MaxLength(1000)]
+        public string Description { get; set; }
+
+        [Required(ErrorMessage = "Qualifications are required")]
+        public string Qualifications { get; set; }
+
+        [Required(ErrorMessage = "Location is required")]
+        [MaxLength(100)]
+        public string Location { get; set; }
+
+        [Required(ErrorMessage = "Salary is required")]
+        public decimal Salary { get; set; }
+
+        [Required(ErrorMessage = "Company name is required")]
+        [MaxLength(100)]
+        public string CompanyName { get; set; }
+
+        public DateTime PostedDate { get; set; } = DateTime.Now;
+
+        public bool IsActive { get; set; } = true;
+    }
+}
+using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace CareerLync.Models
+{
+    public class Job
+    {
+        [Key]
+        public int JobId { get; set; }
+
+        [Required]
+        [ForeignKey("Employer")]
+        public int EmployerId { get; set; }
+
+        [Required(ErrorMessage = "Job title is required")]
+        [MaxLength(100)]
+        public string Title { get; set; }
+
+        [Required(ErrorMessage = "Job description is required")]
+        [MaxLength(1000)]
+        public string Description { get; set; }
+
+        [Required(ErrorMessage = "Qualifications are required")]
+        public string Qualifications { get; set; }
+
+        [Required(ErrorMessage = "Location is required")]
+        [MaxLength(100)]
+        public string Location { get; set; }
+
+        [Required(ErrorMessage = "Salary is required")]
+        public decimal Salary { get; set; }
+
+        [Required(ErrorMessage = "Company name is required")]
+        [MaxLength(100)]
+        public string CompanyName { get; set; }
+
+        public DateTime PostedDate { get; set; } = DateTime.Now;
+
+        public bool IsActive { get; set; } = true;
+
+        public Employer Employer { get; set; }
+        public ICollection<Application> Applications { get; set; }
+    }
+}
+using CareerLync.Data;
+using CareerLync.DTOs;
+using CareerLync.Exceptions;
+using CareerLync.Interfaces;
+using CareerLync.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace CareerLync.Repositories
+{
+    public class JobRepository : IJobRepository
+    {
+        private readonly AppDbContext _context;
+
+        public JobRepository(AppDbContext context)
+        {
+            _context = context;
+        }
+
+        public async Task<IEnumerable<Job>> GetAllJobsAsync()
+        {
+            var jobs = await _context.Jobs.Where(j => j.IsActive).ToListAsync();
+
+            if (jobs == null || jobs.Count == 0)
+                throw new NotFoundException("No active jobs found.");
+
+            return jobs;
+        }
+
+        public async Task<Job> GetJobByIdAsync(int id)
+        {
+            var job = await _context.Jobs.FirstOrDefaultAsync(j => j.JobId == id && j.IsActive);
+
+            if (job == null)
+                throw new NotFoundException($"Job with ID {id} not found.");
+
+            return job;
+        }
+
+        public async Task<Job> CreateJobAsync(JobDTO jobDto)
+        {
+            if (jobDto == null)
+                throw new ValidationException("Job data must be provided.");
+
+            if (jobDto.Salary <= 0)
+                throw new ValidationException("Salary must be greater than zero.");
+
+            var job = new Job
+            {
+                EmployerId = jobDto.EmployerId,
+                Title = jobDto.Title,
+                Description = jobDto.Description,
+                Qualifications = jobDto.Qualifications,
+                Location = jobDto.Location,
+                Salary = jobDto.Salary,
+                CompanyName = jobDto.CompanyName,
+                PostedDate = jobDto.PostedDate,
+                IsActive = true
+            };
+
+            _context.Jobs.Add(job);
+            await _context.SaveChangesAsync();
+
+            return job;
+        }
+
+        public async Task<Job> UpdateJobAsync(int id, JobDTO jobDto)
+        {
+            if (jobDto == null)
+                throw new ValidationException("Job data must be provided.");
+
+            var job = await _context.Jobs.FirstOrDefaultAsync(j => j.JobId == id && j.IsActive);
+
+            if (job == null)
+                throw new NotFoundException($"Job with ID {id} not found.");
+
+            job.Title = jobDto.Title;
+            job.Description = jobDto.Description;
+            job.Qualifications = jobDto.Qualifications;
+            job.Location = jobDto.Location;
+            job.Salary = jobDto.Salary;
+            job.CompanyName = jobDto.CompanyName;
+            job.PostedDate = jobDto.PostedDate;
+
+            await _context.SaveChangesAsync();
+
+            return job;
+        }
+
+        public async Task<bool> DeleteJobAsync(int id)
+        {
+            var job = await _context.Jobs.FirstOrDefaultAsync(j => j.JobId == id && j.IsActive);
+
+            if (job == null)
+                throw new NotFoundException($"Job with ID {id} not found.");
+
+            job.IsActive = false;
+            await _context.SaveChangesAsync();
+
+            return true;
+        }
+    }
+}
