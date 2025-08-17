@@ -1,3 +1,127 @@
+import React, { useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../Context/AuthContext";
+import jwtDecode from "jwt-decode";
+
+const LoginPage = () => {
+  const navigate = useNavigate();
+  const { setAuth } = useAuth();
+
+  const [form, setForm] = useState({ email: "", password: "" });
+  const [toggleRole, setToggleRole] = useState("JobSeeker"); // UI toggle
+  const [error, setError] = useState("");
+
+  const handleChange = (e) => {
+    setForm({ ...form, [e.target.name]: e.target.value });
+  };
+
+  const handleRoleToggle = (selectedRole) => {
+    setToggleRole(selectedRole);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      // Send with capitalized keys to match your C# LoginDto
+      const res = await axios.post("http://localhost:5290/api/auth/login", {
+        Email: form.email,
+        Password: form.password,
+      });
+
+      const { token } = res.data;
+      const decoded = jwtDecode(token);
+
+      // Extract claims
+      const userId = decoded.sub || decoded.userId;
+      const jwtRole =
+        decoded[
+          "http://schemas.microsoft.com/ws/2008/06/identity/claims/role"
+        ] || "JobSeeker";
+
+      const authData = { token, role: jwtRole, userId };
+      setAuth(authData);
+
+      // Navigate based on toggle (UI choice)
+      if (toggleRole === "Employer") {
+        navigate("/employer-dashboard");
+      } else {
+        navigate("/jobseeker-dashboard");
+      }
+    } catch (err) {
+      console.error("Login failed:", err.response?.data || err.message);
+      setError("Invalid email or password");
+    }
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="bg-white shadow-md rounded-lg p-8 w-full max-w-md">
+        <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+
+        {/* Toggle Role */}
+        <div className="flex justify-center mb-6">
+          <button
+            type="button"
+            onClick={() => handleRoleToggle("JobSeeker")}
+            className={`px-4 py-2 rounded-l-lg ${
+              toggleRole === "JobSeeker"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            JobSeeker
+          </button>
+          <button
+            type="button"
+            onClick={() => handleRoleToggle("Employer")}
+            className={`px-4 py-2 rounded-r-lg ${
+              toggleRole === "Employer"
+                ? "bg-blue-600 text-white"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            Employer
+          </button>
+        </div>
+
+        {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <input
+            type="email"
+            name="email"
+            value={form.email}
+            onChange={handleChange}
+            placeholder="Email"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <input
+            type="password"
+            name="password"
+            value={form.password}
+            onChange={handleChange}
+            placeholder="Password"
+            className="w-full p-2 border rounded"
+            required
+          />
+          <button
+            type="submit"
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition"
+          >
+            Login as {toggleRole}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;
+
 // src/Pages/LoginPage.js
 import React, { useState } from "react";
 import axios from "axios";
