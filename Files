@@ -217,3 +217,400 @@ export default function ResumeUpload({ onUploaded = () => {} }) {
     </form>
   );
 }
+
+
+// src/pages/EmployerDashboard.jsx
+import React, { useEffect, useState } from "react";
+import API_BASE_URL from "../apiConfig";
+import PostJobForm from "../components/PostJobForm";
+import CandidateModal from "../components/CandidateModal";
+import { useNavigate } from "react-router-dom";
+
+export default function EmployerDashboard() {
+  const navigate = useNavigate();
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [selectedJob, setSelectedJob] = useState(null);
+  const [candidate, setCandidate] = useState(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { navigate("/login"); return; }
+    loadJobs();
+    // eslint-disable-next-line
+  }, []);
+
+  function tokenHeader() {
+    return { Authorization: `Bearer ${localStorage.getItem("token") || ""}` };
+  }
+
+  async function loadJobs() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Job`, { headers: tokenHeader() });
+      const data = await res.json();
+      setJobs(Array.isArray(data) ? data : data?.items || []);
+    } catch (err) {
+      console.error("loadJobs", err);
+      alert("Failed to load jobs. Check auth.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSaved() {
+    setShowForm(false);
+    setEditing(null);
+    await loadJobs();
+  }
+
+  async function handleEdit(job) {
+    setEditing(job);
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  async function handleDelete(job) {
+    if (!window.confirm("Delete this job?")) return;
+    try {
+      const id = job.JobId || job.id;
+      await fetch(`${API_BASE_URL}/api/Job/${id}`, { method: "DELETE", headers: tokenHeader() });
+      await loadJobs();
+    } catch (err) {
+      console.error("delete job", err);
+      alert("Delete failed");
+    }
+  }
+
+  async function loadApplicationsFor(job) {
+    try {
+      const id = job.JobId || job.id;
+      const res = await fetch(`${API_BASE_URL}/api/Application?jobId=${id}`, { headers: tokenHeader() });
+      const data = await res.json();
+      setApplications(Array.isArray(data) ? data : data?.items || []);
+      setSelectedJob(job);
+    } catch (err) {
+      console.error("loadApplicationsFor", err);
+      alert("Failed to load applications");
+    }
+  }
+
+  async function viewCandidate(application) {
+    try {
+      const jobSeekerId = application.JobSeekerId || application.jobSeekerId || application.UserId || application.userId;
+      if (!jobSeekerId) return alert("Application missing JobSeekerId");
+      const pRes = await fetch(`${API_BASE_URL}/api/JobSeekers/${jobSeekerId}`, { headers: tokenHeader() });
+      const profile = await pRes.json();
+      const rRes = await fetch(`${API_BASE_URL}/api/Resume/jobseeker/${jobSeekerId}`, { headers: tokenHeader() }).catch(() => null);
+      const resume = rRes ? await rRes.json() : null;
+      setCandidate({ profile, resume });
+    } catch (err) {
+      console.error("viewCandidate", err);
+      alert("Failed to fetch candidate details");
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
+
+  return (
+    <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Employer Dashboard</h1>
+          <div style={{ color: "#444" }}>Create & manage job listings, review applications</div>
+        </div>
+
+        <div>
+          <button onClick={() => { localStorage.removeItem("token"); navigate("/login"); }} style={{ marginRight: 8 }}>Logout</button>
+          <button onClick={() => { setShowForm((s) => !s); setEditing(null); }}>{showForm ? "Cancel" : "Post Job"}</button>
+        </div>
+      </div>
+
+      {showForm && <PostJobForm initial={editing} onSaved={handleSaved} onCancel={() => { setShowForm(false); setEditing(null); }} />}
+
+      <section style={{ marginTop: 18 }}>
+        <h2>Your Jobs</h2>
+        {jobs.length === 0 ? <div>No jobs posted yet.</div> : (
+          <div style={{ display: "grid", gap: 12 }}>
+            {jobs.map((job) => {
+              const id = job.JobId || job.id;
+              return (
+                <div key={id} style={{ border: "1px solid #eee", padding: 12, borderRadius: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ maxWidth: "70%" }}>
+                    <div style={{ fontWeight: 700 }}>{job.Title || job.title}</div>
+                    <div style={{ color: "#555" }}>{job.CompanyName || job.companyName} • {job.Location || job.location}</div>
+                    {job.Description && <div style={{ marginTop: 8 }}>{job.Description}</div>}
+                    <div style={{ marginTop: 8, color: "#666" }}>Salary: {(job.Salary ?? job.salary ?? "")}</div>
+                  </div>
+
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <div>
+                      <button onClick={() => handleEdit(job)}>Edit</button>
+                      <button onClick={() => handleDelete(job)} style={{ marginLeft: 8 }}>Delete</button>
+                    </div>
+                    <div>
+                      <button onClick={() => loadApplicationsFor(job)}>View Applications</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {selectedJob && (
+        <section style={{ marginTop: 20 }}>
+          <h3>Applications — {selectedJob.Title || selectedJob.title}</h3>
+          {applications.length === 0 ? <div>No applications yet</div> : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {applications.map((app) => (
+                <div key={app.ApplicationId || app.id} style={{ border: "1px solid #f0f0f0", padding: 10, borderRadius: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{app.CandidateName || app.candidateName || app.JobSeekerName || `${app.JobSeekerId || app.jobSeekerId || ""}`}</div>
+                    <div style={{ color: "#666" }}>{app.Status || app.status || "Applied"}</div>
+                  </div>
+                  <div>
+                    <button onClick={() => viewCandidate(app)}>View Candidate</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
+      {candidate && <CandidateModal candidate={candidate} onClose={() => setCandidate(null)} />}
+    </div>
+  );
+}
+
+
+// src/pages/JobSeekerDashboard.jsx
+import React, { useEffect, useState } from "react";
+import API_BASE_URL from "../apiConfig";
+import ResumeUpload from "../components/ResumeUpload";
+import { useNavigate } from "react-router-dom";
+
+export default function JobSeekerDashboard() {
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [filters, setFilters] = useState({ q: "", location: "", industry: "" });
+  const [applications, setApplications] = useState([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (!token) { navigate("/login"); return; }
+    loadProfile();
+    fetchJobs();
+    fetchMyApplications();
+    // eslint-disable-next-line
+  }, []);
+
+  const tokenHeader = () => ({ Authorization: `Bearer ${localStorage.getItem("token") || ""}` });
+
+  async function loadProfile() {
+    try {
+      const userId = localStorage.getItem("userId");
+      if (!userId) return;
+      const res = await fetch(`${API_BASE_URL}/api/JobSeekers/user/${userId}`, { headers: tokenHeader() });
+      if (!res.ok) return; // no profile yet
+      const data = await res.json();
+      setProfile(data);
+      if (data?.JobSeekerID) localStorage.setItem("jobSeekerId", data.JobSeekerID);
+    } catch (err) {
+      console.warn("loadProfile:", err);
+    }
+  }
+
+  async function saveProfile(payload) {
+    try {
+      if (payload?.JobSeekerID) {
+        const res = await fetch(`${API_BASE_URL}/api/JobSeekers/${payload.JobSeekerID}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...tokenHeader() },
+          body: JSON.stringify(payload),
+        });
+        const updated = await res.json();
+        setProfile(updated);
+      } else {
+        const res = await fetch(`${API_BASE_URL}/api/JobSeekers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...tokenHeader() },
+          body: JSON.stringify(payload),
+        });
+        const created = await res.json();
+        setProfile(created);
+        if (created?.JobSeekerID) localStorage.setItem("jobSeekerId", created.JobSeekerID);
+      }
+      alert("Profile saved");
+    } catch (err) {
+      console.error("saveProfile", err);
+      alert("Save failed");
+    }
+  }
+
+  async function fetchJobs() {
+    try {
+      const params = new URLSearchParams();
+      if (filters.q) params.append("title", filters.q);
+      if (filters.location) params.append("location", filters.location);
+      if (filters.industry) params.append("industry", filters.industry);
+      const res = await fetch(`${API_BASE_URL}/api/Job?${params.toString()}`, { headers: tokenHeader() });
+      const data = await res.json();
+      setJobs(Array.isArray(data) ? data : data?.items || []);
+    } catch (err) {
+      console.error("fetchJobs", err);
+      alert("Failed to fetch jobs");
+    }
+  }
+
+  async function applyToJob(job) {
+    try {
+      const jobId = job.JobId || job.id;
+      const jobSeekerId = profile?.JobSeekerID || localStorage.getItem("jobSeekerId") || localStorage.getItem("userId");
+      if (!jobSeekerId) return alert("Please create a JobSeeker profile before applying.");
+      const payload = { JobId: Number(jobId), JobSeekerId: Number(jobSeekerId), Status: "Applied" };
+      await fetch(`${API_BASE_URL}/api/Application`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...tokenHeader() },
+        body: JSON.stringify(payload),
+      });
+      alert("Applied successfully");
+      fetchMyApplications();
+    } catch (err) {
+      console.error("applyToJob", err);
+      alert("Apply failed");
+    }
+  }
+
+  async function fetchMyApplications() {
+    try {
+      const jobSeekerId = profile?.JobSeekerID || localStorage.getItem("jobSeekerId") || null;
+      if (!jobSeekerId) { setApplications([]); return; }
+      const res = await fetch(`${API_BASE_URL}/api/Application?jobSeekerId=${jobSeekerId}`, { headers: tokenHeader() });
+      const data = await res.json();
+      setApplications(Array.isArray(data) ? data : data?.items || []);
+    } catch (err) {
+      console.error("fetchMyApplications", err);
+    }
+  }
+
+  return (
+    <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+        <h1>JobSeeker Dashboard</h1>
+        <div>
+          <button onClick={() => { localStorage.removeItem("token"); navigate("/login"); }}>Logout</button>
+        </div>
+      </div>
+
+      <section style={{ marginBottom: 18 }}>
+        <h3>Your Profile</h3>
+        <ProfileEditor initial={profile} onSave={saveProfile} />
+      </section>
+
+      <section style={{ marginBottom: 18 }}>
+        <h3>Upload / Update Resume</h3>
+        <ResumeUpload onUploaded={() => fetchMyApplications()} />
+      </section>
+
+      <section style={{ marginBottom: 18 }}>
+        <h3>Search Jobs</h3>
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input placeholder="Title / keyword" value={filters.q} onChange={(e) => setFilters((s) => ({ ...s, q: e.target.value }))} />
+          <input placeholder="Location" value={filters.location} onChange={(e) => setFilters((s) => ({ ...s, location: e.target.value }))} />
+          <input placeholder="Industry" value={filters.industry} onChange={(e) => setFilters((s) => ({ ...s, industry: e.target.value }))} />
+          <button onClick={fetchJobs}>Search</button>
+        </div>
+
+        <div>
+          {jobs.length === 0 ? <div>No jobs found</div> : (
+            <div style={{ display: "grid", gap: 10 }}>
+              {jobs.map((j) => (
+                <div key={j.JobId || j.id} style={{ border: "1px solid #eee", padding: 10, borderRadius: 8, display: "flex", justifyContent: "space-between" }}>
+                  <div style={{ maxWidth: "70%" }}>
+                    <div style={{ fontWeight: 700 }}>{j.Title || j.title}</div>
+                    <div style={{ color: "#666" }}>{j.CompanyName || j.companyName} • {j.Location || j.location}</div>
+                    <div style={{ marginTop: 6 }}>{(j.Description || "").slice(0, 180)}{(j.Description || j.description || "").length > 180 ? "..." : ""}</div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    <button onClick={() => applyToJob(j)}>Apply</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
+
+      <section>
+        <h3>Your Applications</h3>
+        {applications.length === 0 ? <div>No applications yet</div> : (
+          <div style={{ display: "grid", gap: 8 }}>
+            {applications.map((a) => (
+              <div key={a.ApplicationId || a.id} style={{ border: "1px solid #f0f0f0", padding: 8, borderRadius: 8 }}>
+                <div style={{ fontWeight: 600 }}>{a.JobTitle || a.jobTitle || (a.JobId ? `Job ${a.JobId}` : "")}</div>
+                <div style={{ color: "#666" }}>{a.Status || a.status} • {a.AppliedOn ? new Date(a.AppliedOn).toLocaleDateString() : ""}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+/* ProfileEditor (inline) */
+function ProfileEditor({ initial = null, onSave = () => {} }) {
+  const [p, setP] = useState({
+    JobSeekerID: initial?.JobSeekerID ?? null,
+    UserId: initial?.UserId ?? Number(localStorage.getItem("userId")),
+    FirstName: initial?.FirstName ?? initial?.firstName ?? "",
+    LastName: initial?.LastName ?? initial?.lastName ?? "",
+    Phone: initial?.Phone ?? initial?.phone ?? "",
+    Qualification: initial?.Qualification ?? initial?.qualification ?? "",
+    Skills: Array.isArray(initial?.Skills) ? initial.Skills.join(", ") : (initial?.Skills ?? ""),
+  });
+
+  React.useEffect(() => {
+    if (initial) {
+      setP((s) => ({ ...s, ...initial, Skills: Array.isArray(initial.Skills) ? initial.Skills.join(", ") : (initial.Skills || "") }));
+    }
+    // eslint-disable-next-line
+  }, [initial]);
+
+  const submit = (e) => {
+    e.preventDefault();
+    const payload = {
+      ...p,
+      Skills: p.Skills ? p.Skills.split(",").map((s) => s.trim()).filter(Boolean) : [],
+    };
+    onSave(payload);
+  };
+
+  return (
+    <form onSubmit={submit} style={{ display: "grid", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input placeholder="First name" value={p.FirstName} onChange={(e) => setP({ ...p, FirstName: e.target.value })} required />
+        <input placeholder="Last name" value={p.LastName} onChange={(e) => setP({ ...p, LastName: e.target.value })} required />
+      </div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input placeholder="Phone" value={p.Phone} onChange={(e) => setP({ ...p, Phone: e.target.value })} />
+        <input placeholder="Qualification" value={p.Qualification} onChange={(e) => setP({ ...p, Qualification: e.target.value })} />
+      </div>
+      <div>
+        <label>Skills (comma separated)</label>
+        <input value={p.Skills} onChange={(e) => setP({ ...p, Skills: e.target.value })} />
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button type="submit">Save Profile</button>
+      </div>
+    </form>
+  );
+}
