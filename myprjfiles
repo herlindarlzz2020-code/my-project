@@ -1,3 +1,222 @@
+// src/Pages/JobSeekerDashboard.js
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import "./Dashboard.css"; // optional custom styles
+
+const JobSeekerDashboard = () => {
+  const [activeTab, setActiveTab] = useState("profile");
+  const [profile, setProfile] = useState({
+    id: null,
+    fullName: "",
+    email: "",
+    phoneNumber: "",
+    education: "",
+    experience: "",
+    skills: "",
+  });
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+
+  // Fetch jobs (example GET call)
+  useEffect(() => {
+    axios
+      .get("http://localhost:5290/api/jobs")
+      .then((res) => setJobs(res.data))
+      .catch((err) => console.error("Error fetching jobs", err));
+  }, []);
+
+  // Save profile (create or update)
+  const saveProfile = async () => {
+    try {
+      if (profile.id) {
+        await axios.put(`http://localhost:5290/api/jobseeker/${profile.id}`, {
+          FullName: profile.fullName,
+          Email: profile.email,
+          PhoneNumber: profile.phoneNumber,
+          Education: profile.education,
+          Experience: profile.experience,
+          Skills: profile.skills,
+        });
+      } else {
+        const res = await axios.post("http://localhost:5290/api/jobseeker", {
+          FullName: profile.fullName,
+          Email: profile.email,
+          PhoneNumber: profile.phoneNumber,
+          Education: profile.education,
+          Experience: profile.experience,
+          Skills: profile.skills,
+        });
+        setProfile({ ...profile, id: res.data.id });
+      }
+      alert("✅ Profile saved successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error saving profile: " + (err.response?.data || err.message));
+    }
+  };
+
+  // Apply to a job
+  const applyJob = async (jobId) => {
+    try {
+      await axios.post(`http://localhost:5290/api/applications`, {
+        JobId: jobId,
+        JobSeekerId: profile.id,
+      });
+      alert("✅ Applied successfully!");
+    } catch (err) {
+      console.error(err);
+      alert("❌ Error applying: " + (err.response?.data || err.message));
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-5xl mx-auto">
+        {/* Header */}
+        <header className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-gray-800">Job Seeker Dashboard</h1>
+          <p className="text-gray-500">Manage your profile, search jobs, and track applications</p>
+        </header>
+
+        {/* Tabs */}
+        <div className="flex justify-center mb-6 space-x-4">
+          <button
+            className={`px-4 py-2 rounded-full ${
+              activeTab === "profile"
+                ? "bg-blue-600 text-white"
+                : "bg-white border text-gray-600"
+            }`}
+            onClick={() => setActiveTab("profile")}
+          >
+            Profile
+          </button>
+          <button
+            className={`px-4 py-2 rounded-full ${
+              activeTab === "search"
+                ? "bg-blue-600 text-white"
+                : "bg-white border text-gray-600"
+            }`}
+            onClick={() => setActiveTab("search")}
+          >
+            Job Search
+          </button>
+          <button
+            className={`px-4 py-2 rounded-full ${
+              activeTab === "applications"
+                ? "bg-blue-600 text-white"
+                : "bg-white border text-gray-600"
+            }`}
+            onClick={() => setActiveTab("applications")}
+          >
+            My Applications
+          </button>
+        </div>
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <div className="bg-white shadow-md rounded-xl p-6 space-y-4">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">My Profile</h2>
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={profile.fullName}
+              onChange={(e) => setProfile({ ...profile, fullName: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <input
+              type="email"
+              placeholder="Email"
+              value={profile.email}
+              onChange={(e) => setProfile({ ...profile, email: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <input
+              type="text"
+              placeholder="Phone Number"
+              value={profile.phoneNumber}
+              onChange={(e) => setProfile({ ...profile, phoneNumber: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <textarea
+              placeholder="Education"
+              value={profile.education}
+              onChange={(e) => setProfile({ ...profile, education: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <textarea
+              placeholder="Experience"
+              value={profile.experience}
+              onChange={(e) => setProfile({ ...profile, experience: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <textarea
+              placeholder="Skills"
+              value={profile.skills}
+              onChange={(e) => setProfile({ ...profile, skills: e.target.value })}
+              className="w-full border rounded-lg p-2"
+            />
+            <button
+              onClick={saveProfile}
+              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
+            >
+              Save Profile
+            </button>
+          </div>
+        )}
+
+        {/* Job Search Tab */}
+        {activeTab === "search" && (
+          <div className="bg-white shadow-md rounded-xl p-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">Available Jobs</h2>
+            <div className="grid md:grid-cols-2 gap-4">
+              {jobs.map((job) => (
+                <div
+                  key={job.id}
+                  className="border rounded-lg p-4 shadow-sm hover:shadow-md transition"
+                >
+                  <h3 className="text-lg font-bold text-gray-800">{job.title}</h3>
+                  <p className="text-gray-600">{job.description}</p>
+                  <p className="text-gray-500 text-sm">{job.location}</p>
+                  <button
+                    onClick={() => applyJob(job.id)}
+                    className="mt-3 bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700"
+                  >
+                    Apply
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Applications Tab */}
+        {activeTab === "applications" && (
+          <div className="bg-white shadow-md rounded-xl p-6">
+            <h2 className="text-xl font-semibold text-gray-700 mb-4">My Applications</h2>
+            {applications.length > 0 ? (
+              <ul className="space-y-2">
+                {applications.map((app) => (
+                  <li
+                    key={app.id}
+                    className="border p-3 rounded-md flex justify-between items-center"
+                  >
+                    <span>{app.jobTitle}</span>
+                    <span className="text-sm text-gray-500">{app.status}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500">You haven’t applied to any jobs yet.</p>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 
 const AuthContext = createContext();
