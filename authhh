@@ -1,113 +1,143 @@
-using CareerLync.Data;
 using CareerLync.DTOs;
-using CareerLync.Exceptions;
 using CareerLync.Interfaces;
 using CareerLync.Models;
-using System.Security.Cryptography;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Text;
 
-namespace CareerLync.Repositories
+namespace CareerLync.Controllers
 {
-    public class AuthRepository : IAuthRepository
+    [ApiController]
+    [Route("api/[controller]")]
+    public class AuthController : ControllerBase
     {
-        private readonly AppDbContext _context;
+        private readonly IAuthRepository _authRepository;
+        private readonly IConfiguration _configuration;
 
-        public AuthRepository(AppDbContext context)
+        public AuthController(IAuthRepository authRepository, IConfiguration configuration)
         {
-            _context = context;
+            _authRepository = authRepository;
+            _configuration = configuration;
         }
 
-        private string HashPassword(string password)
+        private string GenerateJwtToken(User user)
         {
-            using (SHA256 sha256 = SHA256.Create())
+            var secretKey = _configuration["JwtSettings:SecretKey"];
+            var issuer = _configuration["JwtSettings:Issuer"];
+            var audience = _configuration["JwtSettings:Audience"];
+            var expiryMinutes = Convert.ToDouble(_configuration["JwtSettings:ExpiryMinutes"]);
+
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+            var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
             {
-                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(password));
-                return Convert.ToBase64String(bytes);
-            }
-        }
+                new Claim(ClaimTypes.NameIdentifier, user.UserId.ToString()),
+                new Claim(ClaimTypes.Name, user.UserName),
+                new Claim(ClaimTypes.Role, user.Role.ToLower())
 
-        private string GenerateRefreshToken()
-        {
-            var randomNumber = new byte[32];
-            using (var rng = RandomNumberGenerator.Create())
-            {
-                rng.GetBytes(randomNumber);
-                return Convert.ToBase64String(randomNumber);
-            }
-        }
-
-        public string Register(RegisterDTO dto)
-        {
-            if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                throw new ValidationException("Email and password are required.");
-
-            if (_context.Users.Any(u => u.Email == dto.Email && u.IsActive))
-                throw new BadRequestException("Email already exists.");
-
-            //  Always hash the incoming password
-            var hashedPassword = HashPassword(dto.Password);
-
-            var user = new User
-            {
-                UserName = dto.UserName,
-                Email = dto.Email,
-                Password = hashedPassword,
-                Role = dto.Role,
-                CreatedAt = DateTime.Now,
-                IsActive = true
             };
 
-            _context.Users.Add(user);
-            _context.SaveChanges();
+            var token = new JwtSecurityToken(
+                issuer: issuer,
+                audience: audience,
+                claims: claims,
+                expires: DateTime.UtcNow.AddMinutes(expiryMinutes),
+                signingCredentials: creds
+            );
 
-            return "Registration successful.";
+            return new JwtSecurityTokenHandler().WriteToken(token);
         }
 
-         public User Login(LoginDTO dto)
-         {
-             if (string.IsNullOrWhiteSpace(dto.Email) || string.IsNullOrWhiteSpace(dto.Password))
-                 throw new ValidationException("Email and password are required.");
-
-             var user = _context.Users.FirstOrDefault(u => u.Email == dto.Email && u.IsActive);
-             if (user == null)
-                 throw new BadRequestException("Invalid email or password.");
-
-             //  Always hash the incoming password before comparison
-             var hashedPassword = HashPassword(dto.Password);
-             if (user.Password != hashedPassword)
-                 throw new BadRequestException("Invalid email or password.");
-
-             // Generate refresh token
-             user.RefreshToken = GenerateRefreshToken();
-             user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
-
-             _context.SaveChanges();
-             return user;
-         }
-        
-    
-
-        public User GetUserByRefreshToken(string refreshToken)
+        [HttpPost("register")]
+        public IActionResult Register([FromBody] RegisterDTO dto)
         {
-            var user = _context.Users.FirstOrDefault(u => u.RefreshToken == refreshToken && u.RefreshTokenExpiryTime > DateTime.UtcNow);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
 
-            if (user == null)
-                throw new NotFoundException("User with given refresh token not found or expired.");
+            var result = _authRepository.Register(dto);
+            if (result == "Email already exists.")
+                return Conflict(result);
 
-           return user;
-
+            return Ok(result);
         }
 
-        public string DeleteUser(int userId)
+        [HttpPost("login")]
+        public IActionResult Login([FromBody] LoginDTO dto)
         {
-            var user = _context.Users.FirstOrDefault(u => u.UserId == userId);
+            if (!ModelState.IsValid)
+                return BadRequest(ModelState);
+
+            var user = _authRepository.Login(dto);
             if (user == null)
-                throw new NotFoundException("User not found.");
+                return Unauthorized("Invalid email or password.");
 
-            user.IsActive = false;
-            _context.SaveChanges();
+            var token = GenerateJwtToken(user);
 
-            return "User deactivated.";
+            return Ok(new AuthResponseDTO
+            {
+                Message = "Login successful.",
+                Token = token,
+                RefreshToken = user.RefreshToken
+            });
+        }
+
+        [HttpPost("refresh")]
+        public IActionResult Refresh([FromBody] RefreshTokenRequestDTO dto)
+        {
+            var principal = GetPrincipalFromExpiredToken(dto.Token);
+            var userId = int.Parse(principal.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+
+            var user = _authRepository.GetUserByRefreshToken(dto.RefreshToken);
+            if (user == null || user.UserId != userId)
+                return Unauthorized("Invalid refresh token.");
+
+            var newJwtToken = GenerateJwtToken(user);
+            var newRefreshToken = Guid.NewGuid().ToString();
+            user.RefreshToken = newRefreshToken;
+            user.RefreshTokenExpiryTime = DateTime.UtcNow.AddDays(7);
+            _authRepository.Login(new LoginDTO { Email = user.Email, Password = user.Password });
+
+            return Ok(new AuthResponseDTO
+            {
+                Message = "Token refreshed.",
+                Token = newJwtToken,
+                RefreshToken = newRefreshToken
+            });
+        }
+
+        private ClaimsPrincipal GetPrincipalFromExpiredToken(string token)
+        {
+            var key = _configuration["JwtSettings:SecretKey"];
+
+            var tokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateAudience = false,
+                ValidateIssuer = false,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+                ValidateLifetime = false
+            };
+
+            var tokenHandler = new JwtSecurityTokenHandler();
+            var principal = tokenHandler.ValidateToken(token, tokenValidationParameters, out SecurityToken securityToken);
+
+            if (!(securityToken is JwtSecurityToken jwtSecurityToken))
+                throw new SecurityTokenException("Invalid token");
+
+            return principal;
+        }
+
+        [HttpDelete("{userId}")]
+        public IActionResult DeleteUser(int userId)
+        {
+            var result = _authRepository.DeleteUser(userId);
+            if (result == "User not found.")
+                return NotFound(result);
+
+            return Ok(result);
         }
     }
 }
