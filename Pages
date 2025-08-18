@@ -3,6 +3,136 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./Dashboard.css";
 
+const dummyJobs = [
+  { id: 1, title: "Frontend Developer", company: "Tech Corp", location: "Remote", description: "Build amazing UIs." },
+  { id: 2, title: "Backend Developer", company: "Data Systems", location: "Chennai", description: "Work with APIs and DBs." },
+  { id: 3, title: "Fullstack Engineer", company: "InnovateX", location: "Bangalore", description: "Work on end-to-end solutions." },
+];
+
+const JobSeekerDashboard = () => {
+  const [userName, setUserName] = useState("");
+  const [jobs, setJobs] = useState([]);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("search"); // search or applied
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Get user name from localStorage
+    const name = localStorage.getItem("userName") || "Job Seeker";
+    setUserName(name);
+
+    // Fetch jobs
+    const fetchJobs = async () => {
+      try {
+        const res = await axios.get("http://localhost:5290/api/Jobs");
+        setJobs(res.data);
+      } catch (err) {
+        console.log("Backend error, using dummy jobs.");
+        setJobs(dummyJobs);
+      }
+      setLoading(false);
+    };
+
+    // Fetch applied jobs
+    const fetchAppliedJobs = async () => {
+      try {
+        const userId = localStorage.getItem("userId") || 1; // fallback dummy userId
+        const res = await axios.get(`http://localhost:5290/api/Application/jobseeker/${userId}`);
+        setAppliedJobs(res.data);
+      } catch (err) {
+        console.log("Backend error, using empty applied jobs.");
+        setAppliedJobs([]);
+      }
+    };
+
+    fetchJobs();
+    fetchAppliedJobs();
+  }, []);
+
+  const handleApply = async (job) => {
+    try {
+      const userId = localStorage.getItem("userId") || 1;
+      const res = await axios.post("http://localhost:5290/api/Application", {
+        jobId: job.id,
+        jobSeekerId: userId,
+      });
+      alert("Applied successfully!");
+      setAppliedJobs([...appliedJobs, job]);
+    } catch (err) {
+      console.log("Backend error, applying locally.");
+      setAppliedJobs([...appliedJobs, job]);
+    }
+  };
+
+  if (loading) return <p className="text-center mt-10">Loading...</p>;
+
+  return (
+    <div className="dashboard-page">
+      <h1 className="dashboard-title">Welcome, {userName}!</h1>
+      <p className="dashboard-quote text-gray-600 mb-8 italic">
+        "Opportunities don't happen. You create them."
+      </p>
+
+      {/* Tabs */}
+      <div className="flex mb-6 gap-4">
+        <button
+          className={`px-4 py-2 rounded-lg font-medium ${activeTab === "search" ? "bg-purple-500 text-white" : "bg-gray-200 text-gray-700"}`}
+          onClick={() => setActiveTab("search")}
+        >
+          Search Jobs
+        </button>
+        <button
+          className={`px-4 py-2 rounded-lg font-medium ${activeTab === "applied" ? "bg-purple-500 text-white" : "bg-gray-200 text-gray-700"}`}
+          onClick={() => setActiveTab("applied")}
+        >
+          Applied Jobs
+        </button>
+      </div>
+
+      {/* Jobs List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {activeTab === "search" &&
+          jobs.map((job) => (
+            <div key={job.id} className="dashboard-card p-4 bg-white shadow-md">
+              <h3 className="font-bold text-lg">{job.title}</h3>
+              <p className="text-gray-500">{job.company} - {job.location}</p>
+              <p className="text-gray-600 mt-2">{job.description}</p>
+              <button
+                onClick={() => handleApply(job)}
+                className="mt-4 w-full bg-gradient-to-r from-purple-500 to-pink-500 text-white py-2 rounded-lg hover:opacity-90 transition"
+              >
+                Apply Job
+              </button>
+            </div>
+          ))}
+
+        {activeTab === "applied" &&
+          (appliedJobs.length > 0 ? (
+            appliedJobs.map((job) => (
+              <div key={job.id} className="dashboard-card p-4 bg-white shadow-md">
+                <h3 className="font-bold text-lg">{job.title}</h3>
+                <p className="text-gray-500">{job.company} - {job.location}</p>
+                <p className="text-gray-600 mt-2">{job.description}</p>
+                <button disabled className="mt-4 w-full bg-gray-400 text-white py-2 rounded-lg cursor-not-allowed">
+                  Applied
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-600">You have not applied to any jobs yet.</p>
+          ))}
+      </div>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
+// src/pages/JobSeekerDashboard.jsx
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import "./Dashboard.css";
+
 const JobSeekerDashboard = () => {
   const [jobs, setJobs] = useState([]);
   const [appliedJobs, setAppliedJobs] = useState([]);
