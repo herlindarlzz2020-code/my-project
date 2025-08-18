@@ -1,3 +1,150 @@
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { Container, Form, Button, Alert, Card } from "react-bootstrap";
+
+const JobSeekerDashboard = () => {
+  const [profile, setProfile] = useState({
+    jobSeekerID: "",
+    userId: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    qualification: "",
+    skills: "",
+  });
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const userId = localStorage.getItem("userId"); // save this at login too
+
+        if (!token || !userId) {
+          setError("Not logged in. Please login again.");
+          return;
+        }
+
+        const res = await axios.get(
+          `http://localhost:5290/api/JobSeekers/user/${userId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          }
+        );
+
+        setProfile(res.data);
+      } catch (err) {
+        console.error(err);
+        setError("Error loading profile. Please login again.");
+      }
+    };
+
+    fetchProfile();
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setProfile({ ...profile, [name]: value });
+  };
+
+  const handleSave = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Not authorized. Please login again.");
+        return;
+      }
+
+      await axios.put(
+        `http://localhost:5290/api/JobSeekers/${profile.jobSeekerID}`,
+        profile,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setMessage("Profile updated successfully!");
+      setError("");
+    } catch (err) {
+      console.error(err);
+      setError("Error saving profile. Please try again.");
+      setMessage("");
+    }
+  };
+
+  return (
+    <Container className="mt-5">
+      <Card className="shadow-lg p-4">
+        <h2 className="mb-4 text-center">JobSeeker Dashboard</h2>
+
+        {error && <Alert variant="danger">{error}</Alert>}
+        {message && <Alert variant="success">{message}</Alert>}
+
+        <Form>
+          <Form.Group className="mb-3">
+            <Form.Label>First Name</Form.Label>
+            <Form.Control
+              type="text"
+              name="firstName"
+              value={profile.firstName}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Last Name</Form.Label>
+            <Form.Control
+              type="text"
+              name="lastName"
+              value={profile.lastName}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Phone</Form.Label>
+            <Form.Control
+              type="text"
+              name="phone"
+              value={profile.phone}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Qualification</Form.Label>
+            <Form.Control
+              type="text"
+              name="qualification"
+              value={profile.qualification}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <Form.Group className="mb-3">
+            <Form.Label>Skills</Form.Label>
+            <Form.Control
+              type="text"
+              name="skills"
+              value={profile.skills}
+              onChange={handleChange}
+            />
+          </Form.Group>
+
+          <div className="d-grid">
+            <Button variant="primary" onClick={handleSave}>
+              Save Profile
+            </Button>
+          </div>
+        </Form>
+      </Card>
+    </Container>
+  );
+};
+
+export default JobSeekerDashboard;
+
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Container, Row, Col, Form, Button, Card, Spinner } from "react-bootstrap";
