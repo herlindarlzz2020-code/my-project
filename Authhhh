@@ -1,4 +1,132 @@
 // src/pages/JobSeekerDashboard.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import "./Dashboard.css";
+
+const JobSeekerDashboard = () => {
+  const [activeTab, setActiveTab] = useState("search"); // search or applied
+  const [jobs, setJobs] = useState([]);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+
+  const jobSeekerId = 1; // Replace with logged-in job seeker ID or from auth
+
+  const dummyJobs = [
+    {
+      id: 101,
+      title: "Frontend Developer",
+      description: "React.js, HTML, CSS",
+      location: "Chennai",
+      salary: "25k-35k",
+    },
+    {
+      id: 102,
+      title: "Backend Developer",
+      description: "C#, .NET, SQL",
+      location: "Bangalore",
+      salary: "30k-40k",
+    },
+  ];
+
+  // Fetch all jobs
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await axios.get("http://localhost:5290/api/Jobs");
+        setJobs(res.data.length ? res.data : dummyJobs);
+      } catch (err) {
+        console.log("Error fetching jobs, using dummy data", err);
+        setJobs(dummyJobs);
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
+  // Fetch applied jobs
+  useEffect(() => {
+    const fetchAppliedJobs = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5290/api/Application/jobseeker/${jobSeekerId}`
+        );
+        setAppliedJobs(res.data || []);
+      } catch (err) {
+        console.log("Error fetching applied jobs", err);
+        setAppliedJobs([]);
+      }
+    };
+
+    fetchAppliedJobs();
+  }, []);
+
+  const handleApply = async (job) => {
+    try {
+      const payload = { jobId: job.id, jobSeekerId };
+      await axios.post("http://localhost:5290/api/Application", payload);
+
+      setAppliedJobs([...appliedJobs, job]);
+      alert(`Applied to ${job.title} successfully!`);
+    } catch (err) {
+      console.log("Error applying to job, adding dummy", err);
+      setAppliedJobs([...appliedJobs, job]);
+    }
+  };
+
+  return (
+    <div className="dashboard-page">
+      <h1 className="dashboard-title">Welcome Job Seeker!</h1>
+
+      <div style={{ marginBottom: "20px" }}>
+        <button onClick={() => setActiveTab("search")}>Search Jobs</button>
+        <button onClick={() => setActiveTab("applied")}>Applied Jobs</button>
+      </div>
+
+      {activeTab === "search" && (
+        <div className="dashboard-cards-container">
+          {jobs.map((job) => (
+            <div key={job.id} className="dashboard-card">
+              <h3>{job.title}</h3>
+              <p>{job.description}</p>
+              <p>Location: {job.location}</p>
+              <p>Salary: {job.salary}</p>
+              <button
+                className="apply-btn"
+                onClick={() => handleApply(job)}
+                disabled={appliedJobs.some((aj) => aj.id === job.id)}
+              >
+                {appliedJobs.some((aj) => aj.id === job.id) ? "Applied" : "Apply"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "applied" && (
+        <div className="dashboard-cards-container">
+          {appliedJobs.length > 0 ? (
+            appliedJobs.map((job) => (
+              <div key={job.id} className="dashboard-card applied">
+                <h3>{job.title}</h3>
+                <p>{job.description}</p>
+                <p>Location: {job.location}</p>
+                <p>Salary: {job.salary}</p>
+                <button className="applied-btn" disabled>
+                  Applied
+                </button>
+              </div>
+            ))
+          ) : (
+            <p className="no-applied">You have not applied to any jobs yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
+// src/pages/JobSeekerDashboard.jsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import "./Dashboard.css";
