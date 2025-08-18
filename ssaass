@@ -1,0 +1,146 @@
+mport React, { useState, useContext } from 'react';
+import { Form, Button, Container, Card,ToggleButton,ButtonGroup} from "react-bootstrap";
+import { useNavigate } from 'react-router-dom';
+import "./AuthPages.css";
+import API_BASE_URL from '../apiConfig';
+import { useAuth } from '../Context/AuthContext';
+
+const LoginPage =() =>{
+    const navigate =useNavigate();
+    const[email,setEmail] = useState("");
+    const[password,setPassword] = useState("");
+    const [role,setRole] = useState("jobseeker");
+    const[formData,setFormData] =useState({email: "",password: ""});
+    const[loading,setLoading] = useState(false);
+    const {login} = useAuth();
+
+    const[error,setError] = useState("");
+    const handleChange =(e) =>{
+        setFormData({...formData,[e.target.name]: e.target.value});
+
+    };
+
+    const handleLogin = async(e) =>{
+        e.preventDefault();
+        setLoading(true);
+
+        try{
+            const response = await fetch(`${API_BASE_URL}/api/Auth/login`,{
+                method:"POST",
+                headers:{"Content-Type" : "application/json"},
+                body:JSON.stringify({ ...formData,role}),
+            });
+
+            const data = await response.json();
+            if(response.data.token){
+              const role= login(response.data.token,response.data.refreshToken);
+
+              if(role === "employer"){
+                navigate("/employer/dashboard");
+
+              }else if(role === "jobseeker"){
+                navigate("/jobseeker/dashboard");
+              }
+              else {
+                setError("Invalid role in token.");
+              }
+            }
+
+            if(response.ok){
+                localStorage.setItem("token",data.token);
+                localStorage.setItem("role",role);
+
+                if(role === "employer"){
+                    navigate("/employer/dashboard");
+
+                }else{
+                    navigate("/jobseeker/dashboard");
+                }
+             } else{
+                    alert(data.message||"Login Failed");
+                }
+                
+            }
+            catch(error)
+            {
+                  alert("Error connecting to server");
+            }
+            finally{
+                setLoading(false);
+            }
+        
+    };
+
+    return(
+        <div className="auth-page">
+            <Container className="d-flex justify-content-center align-items-center min-vh-100">
+            <Card className='auth-card shadow-lg p-4'>
+                <h2 className='text-center fw-bold mb-4'>Login</h2>
+               
+               { /*Role Toggle*/}
+                <ButtonGroup className="mb-4 w-100">
+                    <ToggleButton
+                        id="jobseeker-radio"
+                        type="radio"
+                        varient={role === "jobseeker" ? "primary" : "ouline-primary"}
+                        name="role"
+                        value="jobseeker"
+                        checked={role === "jobseeker"}
+                        onChange={(e) => setRole(e.currentTarget.value)}>
+                            JobSeeker
+                    </ToggleButton>
+
+                    <ToggleButton
+                        id="employer-radio"
+                        type="radio"
+                        varient={role === "employer" ? "success" : "ouline-sucess"}
+                        name="role"
+                        value="employer"
+                        checked={role === "employer"}
+                        onChange={(e) => setRole(e.currentTarget.value)}>
+                         Employer
+                    </ToggleButton>
+                </ButtonGroup>
+
+                {/* Form */}
+                <Form onSubmit={handleLogin}>
+                    
+                <Form.Group className="mb-3">
+                        <Form.Label>
+                            Email
+                        </Form.Label>
+                        <Form.Control
+                        type="email"
+                        name="email"
+                        value={formData.email}
+                        onChange={handleChange}
+                        placeholder='Enter email' required />
+                    </Form.Group>
+
+                    <Form.Group className="mb-4">
+                        <Form.Label>
+                            Password
+                        </Form.Label>
+                        <Form.Control
+                        type="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        placeholder='Enter password' required />
+                    </Form.Group>
+                    <Button type="submit" varient="primary" className="w-100 mb-3" disabled={loading}>
+                        {loading ? "Logging in.." : "Login" } 
+                    </Button>
+                </Form>
+                <p className="text-center mb-0">
+                     Don't have an account?{ " "}
+                     <Button varient="link" onClick={()=> navigate("/register")}>
+                        Register here</Button></p>
+            </Card>
+            </Container>
+        </div>
+    );
+
+};
+
+export default LoginPage;
