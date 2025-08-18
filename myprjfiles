@@ -1,3 +1,166 @@
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { Container, Row, Col, Form, Button, Card, Spinner } from "react-bootstrap";
+
+export default function JobSeekerDashboard() {
+  const [profile, setProfile] = useState({
+    jobSeekerID: 0,
+    userId: 0,
+    firstName: "",
+    lastName: "",
+    phone: "",
+    qualification: "",
+    skills: "",
+  });
+
+  const [loading, setLoading] = useState(false);
+
+  // Load profile on mount
+  useEffect(() => {
+    const userId = localStorage.getItem("userId"); // saved at login
+    if (!userId) return;
+
+    setProfile((prev) => ({ ...prev, userId }));
+
+    axios
+      .get(`http://localhost:5290/api/JobSeekers/user/${userId}`)
+      .then((res) => {
+        if (res.data) setProfile(res.data);
+      })
+      .catch(() => {
+        console.log("No existing profile found, please create one.");
+      });
+  }, []);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setProfile((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      if (profile.jobSeekerID && profile.jobSeekerID !== 0) {
+        // Update (PUT)
+        await axios.put(
+          `http://localhost:5290/api/JobSeekers/${profile.jobSeekerID}`,
+          profile
+        );
+        alert("✅ Profile updated successfully!");
+      } else {
+        // Create (POST)
+        const res = await axios.post(
+          "http://localhost:5290/api/JobSeekers",
+          profile
+        );
+        setProfile(res.data);
+        alert("✅ Profile created successfully!");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("❌ Error saving profile: " + error.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Container className="mt-4">
+      <Row className="justify-content-center">
+        <Col md={8}>
+          <Card>
+            <Card.Body>
+              <Card.Title className="mb-3 text-center">Job Seeker Profile</Card.Title>
+              <Form>
+                <Row>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>First Name</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="firstName"
+                        value={profile.firstName}
+                        onChange={handleChange}
+                        placeholder="Enter first name"
+                      />
+                    </Form.Group>
+                  </Col>
+                  <Col md={6}>
+                    <Form.Group className="mb-3">
+                      <Form.Label>Last Name</Form.Label>
+                      <Form.Control
+                        type="text"
+                        name="lastName"
+                        value={profile.lastName}
+                        onChange={handleChange}
+                        placeholder="Enter last name"
+                      />
+                    </Form.Group>
+                  </Col>
+                </Row>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Phone</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="phone"
+                    value={profile.phone}
+                    onChange={handleChange}
+                    placeholder="Enter phone number"
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Qualification</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="qualification"
+                    value={profile.qualification}
+                    onChange={handleChange}
+                    placeholder="Enter qualification"
+                  />
+                </Form.Group>
+
+                <Form.Group className="mb-3">
+                  <Form.Label>Skills</Form.Label>
+                  <Form.Control
+                    type="text"
+                    name="skills"
+                    value={profile.skills}
+                    onChange={handleChange}
+                    placeholder="Enter skills"
+                  />
+                </Form.Group>
+
+                <div className="d-flex justify-content-center">
+                  <Button
+                    variant="primary"
+                    onClick={handleSave}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Spinner
+                          as="span"
+                          animation="border"
+                          size="sm"
+                          role="status"
+                          aria-hidden="true"
+                        /> Saving...
+                      </>
+                    ) : (
+                      "Save Profile"
+                    )}
+                  </Button>
+                </div>
+              </Form>
+            </Card.Body>
+          </Card>
+        </Col>
+      </Row>
+    </Container>
+  );
+}
+
 // src/Pages/JobSeekerDashboard.js
 import React, { useState, useEffect } from "react";
 import axios from "axios";
