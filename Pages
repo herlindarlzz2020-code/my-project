@@ -1,210 +1,361 @@
-  // src/pages/JobSeekerDashboard.jsx
 import React, { useEffect, useState } from "react";
-import axios from "axios";
+import API_BASE_URL from "../apiConfig";
+import "./Dashboard.css"; // optional: keep shared styles if you have them
+import { useNavigate } from "react-router-dom";
 
-const JobSeekerDashboard = () => {
-  const [jobs, setJobs] = useState([]);
-  const [profile, setProfile] = useState(null);
-  const [profileData, setProfileData] = useState({ name: "", skills: "" });
-  const token = localStorage.getItem("token");
-
-  useEffect(() => {
-    fetchJobs();
-    fetchProfile();
-  }, []);
-
-  const fetchJobs = async () => {
-    try {
-      const res = await axios.get("http://localhost:5290/api/Job", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setJobs(res.data);
-    } catch (err) {
-      console.error("Error fetching jobs", err);
-    }
-  };
-
-  const fetchProfile = async () => {
-    try {
-      const res = await axios.get("http://localhost:5290/api/JobSeekerProfile", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setProfile(res.data);
-    } catch (err) {
-      console.log("No profile yet.");
-    }
-  };
-
-  const createProfile = async () => {
-    try {
-      const res = await axios.post("http://localhost:5290/api/JobSeekerProfile", profileData, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setProfile(res.data);
-      alert("Profile created successfully!");
-    } catch (err) {
-      console.error("Error creating profile", err);
-    }
-  };
-
-  const deleteProfile = async () => {
-    try {
-      await axios.delete(`http://localhost:5290/api/JobSeekerProfile/${profile.id}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setProfile(null);
-      alert("Profile deleted.");
-    } catch (err) {
-      console.error("Error deleting profile", err);
-    }
-  };
-
-  const applyJob = async (jobId) => {
-    try {
-      await axios.post(
-        "http://localhost:5290/api/JobApplication",
-        { jobId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      alert("Applied successfully!");
-    } catch (err) {
-      console.error("Error applying job", err);
-    }
-  };
-
-  return (
-    <div className="h-screen w-screen bg-gradient-to-r from-blue-500 to-indigo-600 flex items-center justify-center">
-      <div className="bg-white/20 backdrop-blur-lg rounded-2xl shadow-xl w-3/4 p-8 text-white">
-        <h1 className="text-3xl font-bold mb-6">JobSeeker Dashboard</h1>
-
-        {/* Profile Section */}
-        {profile ? (
-          <div>
-            <p><b>Name:</b> {profile.name}</p>
-            <p><b>Skills:</b> {profile.skills}</p>
-            <button onClick={deleteProfile} className="mt-3 px-4 py-2 bg-red-500 rounded-lg hover:bg-red-600">Delete Profile</button>
-          </div>
-        ) : (
-          <div>
-            <input
-              type="text"
-              placeholder="Name"
-              className="p-2 rounded text-black mr-2"
-              onChange={(e) => setProfileData({ ...profileData, name: e.target.value })}
-            />
-            <input
-              type="text"
-              placeholder="Skills"
-              className="p-2 rounded text-black mr-2"
-              onChange={(e) => setProfileData({ ...profileData, skills: e.target.value })}
-            />
-            <button onClick={createProfile} className="px-4 py-2 bg-green-500 rounded-lg hover:bg-green-600">Create Profile</button>
-          </div>
-        )}
-
-        {/* Jobs Section */}
-        <h2 className="text-2xl mt-6">Available Jobs</h2>
-        <ul>
-          {jobs.map((job) => (
-            <li key={job.id} className="mt-3 p-3 bg-white/30 rounded-lg flex justify-between">
-              <span>{job.title} - {job.description}</span>
-              <button onClick={() => applyJob(job.id)} className="px-3 py-1 bg-blue-500 rounded-lg hover:bg-blue-600">Apply</button>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-};
-
-export default JobSeekerDashboard;
-
-// src/pages/EmployerDashboard.jsx
-import React, { useEffect, useState } from "react";
-import axios from "axios";
-
-const EmployerDashboard = () => {
+export default function EmployerDashboard() {
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token") || "";
   const [jobs, setJobs] = useState([]);
   const [applications, setApplications] = useState([]);
-  const [jobData, setJobData] = useState({ title: "", description: "" });
-  const token = localStorage.getItem("token");
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [loadingApps, setLoadingApps] = useState(false);
+  const [posting, setPosting] = useState(false);
+
+  const [newJob, setNewJob] = useState({
+    Title: "",
+    CompanyName: "",
+    Location: "",
+    Salary: "",
+    Description: "",
+    Codification: "",
+    ApplicationInstructions: "",
+    IsActive: true,
+  });
 
   useEffect(() => {
-    fetchJobs();
-    fetchApplications();
+    loadJobs();
   }, []);
 
-  const fetchJobs = async () => {
-    try {
-      const res = await axios.get("http://localhost:5290/api/Job", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      setJobs(res.data);
-    } catch (err) {
-      console.error("Error fetching jobs", err);
-    }
-  };
+  function authHeader() {
+    return { Authorization: `Bearer ${token}` };
+  }
 
-  const fetchApplications = async () => {
+  async function loadJobs() {
+    setLoadingJobs(true);
     try {
-      const res = await axios.get("http://localhost:5290/api/JobApplication", {
-        headers: { Authorization: `Bearer ${token}` },
+      const res = await fetch(`${API_BASE_URL}/api/Job`, {
+        method: "GET",
+        headers: { Accept: "application/json", ...authHeader() },
       });
-      setApplications(res.data);
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      setJobs(Array.isArray(data) ? data : data?.items || []);
     } catch (err) {
-      console.error("Error fetching applications", err);
+      console.error("loadJobs:", err);
+      alert("Failed to load jobs. Check console.");
+    } finally {
+      setLoadingJobs(false);
     }
-  };
+  }
 
-  const postJob = async () => {
+  async function postJob() {
+    setPosting(true);
     try {
-      await axios.post("http://localhost:5290/api/Job", jobData, {
-        headers: { Authorization: `Bearer ${token}` },
+      const payload = {
+        EmployerId: Number(localStorage.getItem("userId") || 0),
+        Title: newJob.Title,
+        CompanyName: newJob.CompanyName,
+        Location: newJob.Location,
+        Salary: newJob.Salary || 0,
+        Description: newJob.Description,
+        Codification: newJob.Codification,
+        ApplicationInstructions: newJob.ApplicationInstructions,
+        IsActive: !!newJob.IsActive,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/api/Job`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify(payload),
       });
-      fetchJobs();
-      alert("Job posted successfully!");
+
+      if (!res.ok) {
+        const errText = await res.text().catch(() => "");
+        throw new Error(errText || `Server returned ${res.status}`);
+      }
+
+      alert("Job posted successfully");
+      setNewJob({
+        Title: "",
+        CompanyName: "",
+        Location: "",
+        Salary: "",
+        Description: "",
+        Codification: "",
+        ApplicationInstructions: "",
+        IsActive: true,
+      });
+      await loadJobs();
     } catch (err) {
-      console.error("Error posting job", err);
+      console.error("postJob:", err);
+      alert("Failed to post job. See console.");
+    } finally {
+      setPosting(false);
     }
-  };
+  }
+
+  async function viewApplicationsFor(jobId) {
+    setLoadingApps(true);
+    try {
+      // backend: GET /api/Application?jobId=<id>
+      const res = await fetch(`${API_BASE_URL}/api/Application?jobId=${jobId}`, {
+        headers: { Accept: "application/json", ...authHeader() },
+      });
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const data = await res.json();
+      setApplications(Array.isArray(data) ? data : data?.items || []);
+      // optionally open a detail pane — here we scroll to applications
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    } catch (err) {
+      console.error("viewApplicationsFor:", err);
+      alert("Failed to load applications.");
+    } finally {
+      setLoadingApps(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+    navigate("/login");
+  }
 
   return (
-    <div className="h-screen w-screen bg-gradient-to-r from-purple-500 to-pink-600 flex items-center justify-center">
-      <div className="bg-white/20 backdrop-blur-lg rounded-2xl shadow-xl w-3/4 p-8 text-white">
-        <h1 className="text-3xl font-bold mb-6">Employer Dashboard</h1>
+    <div className="min-h-screen bg-gradient-to-br from-purple-600 to-indigo-500 text-white p-6">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">Employer Dashboard</h1>
+            <p className="text-sm text-white/80">Create & manage job listings and review applications</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={logout} className="px-4 py-2 bg-red-500 rounded-lg">Logout</button>
+          </div>
+        </header>
 
-        {/* Post Job */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Job Title"
-            className="p-2 rounded text-black mr-2"
-            onChange={(e) => setJobData({ ...jobData, title: e.target.value })}
-          />
-          <input
-            type="text"
-            placeholder="Description"
-            className="p-2 rounded text-black mr-2"
-            onChange={(e) => setJobData({ ...jobData, description: e.target.value })}
-          />
-          <button onClick={postJob} className="px-4 py-2 bg-green-500 rounded-lg hover:bg-green-600">Post Job</button>
-        </div>
+        {/* Post Job card */}
+        <section className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-4">Post a new job</h2>
 
-        {/* Applications */}
-        <h2 className="text-2xl">Applications</h2>
-        <ul>
-          {applications.map((app) => (
-            <li key={app.id} className="mt-3 p-3 bg-white/30 rounded-lg">
-              <p><b>Job ID:</b> {app.jobId}</p>
-              <p><b>Applicant:</b> {app.jobSeekerName}</p>
-            </li>
-          ))}
-        </ul>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <input className="p-2 rounded" placeholder="Job Title" value={newJob.Title} onChange={(e)=>setNewJob({...newJob, Title:e.target.value})} />
+            <input className="p-2 rounded" placeholder="Company Name" value={newJob.CompanyName} onChange={(e)=>setNewJob({...newJob, CompanyName:e.target.value})} />
+            <input className="p-2 rounded" placeholder="Location" value={newJob.Location} onChange={(e)=>setNewJob({...newJob, Location:e.target.value})} />
+            <input className="p-2 rounded" type="number" placeholder="Salary" value={newJob.Salary} onChange={(e)=>setNewJob({...newJob, Salary:e.target.value})} />
+            <input className="p-2 rounded" placeholder="Codification" value={newJob.Codification} onChange={(e)=>setNewJob({...newJob, Codification:e.target.value})} />
+            <label className="flex items-center gap-2"><input type="checkbox" checked={newJob.IsActive} onChange={(e)=>setNewJob({...newJob, IsActive:e.target.checked})} /> Active / Published</label>
+            <textarea className="p-2 rounded md:col-span-2" rows={4} placeholder="Description" value={newJob.Description} onChange={(e)=>setNewJob({...newJob, Description:e.target.value})} />
+            <textarea className="p-2 rounded md:col-span-2" rows={2} placeholder="Application Instructions" value={newJob.ApplicationInstructions} onChange={(e)=>setNewJob({...newJob, ApplicationInstructions:e.target.value})} />
+          </div>
+
+          <div className="mt-4 flex gap-3">
+            <button onClick={postJob} disabled={posting} className="px-4 py-2 bg-green-500 rounded-lg">
+              {posting ? "Posting..." : "Post Job"}
+            </button>
+            <button onClick={loadJobs} className="px-4 py-2 bg-white/10 rounded-lg">Refresh Jobs</button>
+          </div>
+        </section>
+
+        {/* Jobs list */}
+        <section className="mb-6">
+          <h3 className="text-2xl font-semibold mb-3">Your Jobs</h3>
+          {loadingJobs ? <div>Loading jobs...</div> : (
+            jobs.length === 0 ? <div className="bg-white/5 p-4 rounded">No jobs yet.</div> : (
+              <div className="grid gap-3">
+                {jobs.map(job => {
+                  const id = job.JobId ?? job.id ?? job.Id;
+                  return (
+                    <div key={id} className="bg-white/10 p-4 rounded-lg flex justify-between items-start">
+                      <div style={{maxWidth:"75%"}}>
+                        <div className="font-semibold">{job.Title ?? job.title}</div>
+                        <div className="text-sm text-white/80">{job.CompanyName ?? job.companyName} • {job.Location ?? job.location}</div>
+                        <div className="mt-2 text-sm">{(job.Description ?? job.description ?? "").slice(0, 300)}</div>
+                        <div className="mt-2 text-xs text-white/60">Salary: {job.Salary ?? job.salary ?? "-"}</div>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <button onClick={()=>viewApplicationsFor(id)} className="px-3 py-1 bg-indigo-500 rounded">View Applications</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </section>
+
+        {/* Applications list */}
+        <section>
+          <h3 className="text-2xl font-semibold mb-3">Applications</h3>
+          {loadingApps ? <div>Loading applications...</div> : applications.length === 0 ? (
+            <div className="bg-white/5 p-4 rounded">No applications loaded. Click "View Applications" for a job above.</div>
+          ) : (
+            <div className="grid gap-3">
+              {applications.map(app => (
+                <div key={app.ApplicationId ?? app.id} className="bg-white/10 p-4 rounded-lg">
+                  <div className="font-semibold">{app.CandidateName ?? app.candidateName ?? app.jobSeekerName}</div>
+                  <div className="text-sm text-white/80">{app.Email ?? app.email}</div>
+                  <div className="mt-2 text-xs">Status: {app.Status ?? app.status ?? "Applied"}</div>
+                  {app.ResumePath && <div className="mt-2"><a href={app.ResumePath} target="_blank" rel="noreferrer" className="text-indigo-200 underline">Open Resume</a></div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
-};
+}
 
-export default EmployerDashboard;
+import React, { useEffect, useState } from "react";
+import API_BASE_URL from "../apiConfig";
+import { useNavigate } from "react-router-dom";
 
-  
+export default function JobSeekerDashboard() {
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token") || "";
+  const [jobs, setJobs] = useState([]);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+  const [loadingJobs, setLoadingJobs] = useState(false);
+  const [applyingTo, setApplyingTo] = useState(null);
+
+  useEffect(() => {
+    fetchJobs();
+    fetchApplied();
+  }, []);
+
+  function authHeader() {
+    return { Authorization: `Bearer ${token}` };
+  }
+
+  async function fetchJobs() {
+    setLoadingJobs(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Job`, {
+        headers: { Accept: "application/json", ...authHeader() },
+      });
+      if (!res.ok) throw new Error(`Server ${res.status}`);
+      const data = await res.json();
+      setJobs(Array.isArray(data) ? data : data?.items || []);
+    } catch (err) {
+      console.error("fetchJobs:", err);
+      alert("Failed to load jobs.");
+    } finally {
+      setLoadingJobs(false);
+    }
+  }
+
+  async function fetchApplied() {
+    try {
+      const jobSeekerId = localStorage.getItem("userId") || null;
+      if (!jobSeekerId) return;
+      const res = await fetch(`${API_BASE_URL}/api/Application?jobSeekerId=${jobSeekerId}`, {
+        headers: { Accept: "application/json", ...authHeader() },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setAppliedJobs(Array.isArray(data) ? data : data?.items || []);
+    } catch (err) {
+      console.warn("fetchApplied:", err);
+    }
+  }
+
+  async function handleApply(job) {
+    const jobId = job.JobId ?? job.id ?? job.Id;
+    const jobSeekerId = Number(localStorage.getItem("userId") || localStorage.getItem("jobSeekerId") || 0);
+    if (!jobSeekerId) return alert("Please create a jobseeker profile / ensure userId is available.");
+
+    setApplyingTo(jobId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/Application`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeader() },
+        body: JSON.stringify({ JobId: Number(jobId), JobSeekerId: jobSeekerId, Status: "Applied" }),
+      });
+      if (!res.ok) {
+        const txt = await res.text().catch(()=>"");
+        throw new Error(txt || `Server ${res.status}`);
+      }
+      alert("Applied successfully");
+      fetchApplied();
+    } catch (err) {
+      console.error("handleApply:", err);
+      alert("Failed to apply to job.");
+    } finally {
+      setApplyingTo(null);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    localStorage.removeItem("role");
+    navigate("/login");
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-indigo-600 to-purple-500 text-white p-6">
+      <div className="max-w-6xl mx-auto">
+        <header className="flex justify-between items-center mb-6">
+          <div>
+            <h1 className="text-3xl font-bold">JobSeeker Dashboard</h1>
+            <p className="text-sm text-white/80">Search jobs, apply and track applications</p>
+          </div>
+          <div>
+            <button onClick={logout} className="px-4 py-2 bg-red-500 rounded-lg">Logout</button>
+          </div>
+        </header>
+
+        {/* Profile placeholder */}
+        <section className="bg-white/10 backdrop-blur-md rounded-2xl p-6 mb-6">
+          <h2 className="text-xl font-semibold mb-2">Your Profile</h2>
+          <div className="text-white/80">Profile feature: <strong>Coming soon</strong></div>
+        </section>
+
+        {/* Jobs */}
+        <section className="mb-6">
+          <h2 className="text-2xl font-semibold mb-4">Available Jobs</h2>
+          {loadingJobs ? <div>Loading jobs...</div> : (
+            jobs.length === 0 ? <div className="bg-white/5 p-4 rounded">No jobs found.</div> : (
+              <div className="grid md:grid-cols-2 gap-4">
+                {jobs.map(job => {
+                  const id = job.JobId ?? job.id ?? job.Id;
+                  const applied = appliedJobs.some(a => (a.JobId ?? a.jobId) === id);
+                  return (
+                    <div key={id} className="bg-white/10 p-4 rounded-lg">
+                      <div className="font-semibold text-lg">{job.Title ?? job.title}</div>
+                      <div className="text-sm text-white/80">{job.CompanyName ?? job.companyName} • {job.Location ?? job.location}</div>
+                      <div className="mt-2 text-sm">{(job.Description ?? job.description ?? "").slice(0, 220)}</div>
+                      <div className="mt-3 flex items-center gap-3">
+                        <button disabled={applied || applyingTo===id} onClick={()=>handleApply(job)} className={`px-3 py-1 rounded ${applied ? "bg-gray-500" : "bg-indigo-500 hover:bg-indigo-600"}`}>
+                          {applied ? "Applied" : (applyingTo===id ? "Applying..." : "Apply")}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </section>
+
+        {/* My Applications */}
+        <section>
+          <h2 className="text-2xl font-semibold mb-3">My Applications</h2>
+          {appliedJobs.length === 0 ? <div className="bg-white/5 p-4 rounded">You have not applied to any jobs yet.</div> : (
+            <div className="grid gap-3">
+              {appliedJobs.map(a => (
+                <div key={a.ApplicationId ?? a.id} className="bg-white/10 p-3 rounded-lg">
+                  <div className="font-semibold">{a.JobTitle ?? a.jobTitle ?? `Job ${a.JobId ?? a.jobId}`}</div>
+                  <div className="text-sm text-white/80">Status: {a.Status ?? a.status}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
+            
