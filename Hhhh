@@ -1,0 +1,111 @@
+import React, { createContext, useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+export const AuthContext = createContext();
+
+export const AuthProvider = ({ children }) => {
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+  }, []);
+
+  const login = (userData) => {
+    setUser(userData);
+    localStorage.setItem("user", JSON.stringify(userData));
+
+    // Redirect based on role
+    if (userData.role === "employer") {
+      navigate("/employer-dashboard");
+    } else if (userData.role === "jobseeker") {
+      navigate("/jobseeker-dashboard");
+    }
+  };
+
+  const logout = () => {
+    setUser(null);
+    localStorage.removeItem("user");
+    navigate("/login");
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+import React, { useState, useContext } from "react";
+import axios from "axios";
+import { AuthContext } from "../context/AuthContext";
+import "../styles/Login.css"; // same CSS theme you used earlier
+
+const Login = () => {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+
+  const { login } = useContext(AuthContext);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const res = await axios.post("http://localhost:5000/api/auth/login", {
+        email,
+        password,
+      });
+
+      if (res.data.success) {
+        // userData should include role: "employer" or "jobseeker"
+        login(res.data.user);
+      } else {
+        setError("Invalid credentials");
+      }
+    } catch (err) {
+      console.error(err);
+      setError("Login failed. Please try again.");
+    }
+  };
+
+  return (
+    <div className="login-container">
+      <div className="login-card">
+        <h2>Login</h2>
+        {error && <p className="error">{error}</p>}
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              placeholder="Enter your email"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              placeholder="Enter your password"
+            />
+          </div>
+
+          <button type="submit" className="login-btn">
+            Login
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
