@@ -1,3 +1,97 @@
+// App.js
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "./context/AuthContext";   // ✅ make sure this is correct path
+import HomePage from "./pages/HomePage";
+import LoginPage from "./pages/LoginPage";
+import RegisterPage from "./pages/RegisterPage";
+import JobSeekerDashboard from "./pages/JobSeekerDashboard";
+import EmployerDashboard from "./pages/EmployerDashboard";
+import PrivateRoute from "./components/PrivateRoute";
+
+function App() {
+  return (
+    <AuthProvider>   {/* ✅ Wrap everything here */}
+      <Router>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+
+          <Route
+            path="/jobseeker-dashboard"
+            element={
+              <PrivateRoute roles={["jobseeker"]}>
+                <JobSeekerDashboard />
+              </PrivateRoute>
+            }
+          />
+
+          <Route
+            path="/employer-dashboard"
+            element={
+              <PrivateRoute roles={["employer"]}>
+                <EmployerDashboard />
+              </PrivateRoute>
+            }
+          />
+        </Routes>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+export default App;
+
+
+import React, { createContext, useContext, useState } from "react";
+import jwtDecode from "jwt-decode";
+
+export const AuthContext = createContext(null);
+
+export const useAuth = () => useContext(AuthContext);
+
+export const AuthProvider = ({ children }) => {
+  const [auth, setAuth] = useState(null);
+
+  const login = (token) => {
+    try {
+      const decoded = jwtDecode(token);
+      const role =
+        decoded["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
+        decoded["role"];
+      const id =
+        decoded["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"] ||
+        decoded["nameid"];
+      const username =
+        decoded["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] ||
+        decoded["unique_name"];
+
+      const userData = {
+        token,
+        role: role?.toLowerCase(),
+        user: { id, username },
+      };
+
+      setAuth(userData);
+      localStorage.setItem("auth", JSON.stringify(userData));
+    } catch (err) {
+      console.error("Invalid token", err);
+    }
+  };
+
+  const logout = () => {
+    setAuth(null);
+    localStorage.removeItem("auth");
+  };
+
+  return (
+    <AuthContext.Provider value={{ auth, setAuth, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
 import React, { useState, useEffect, useContext } from "react";
 import { Container, Form, Button, Card, Alert } from "react-bootstrap";
 import api from "../api";
