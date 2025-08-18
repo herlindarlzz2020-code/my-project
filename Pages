@@ -1,3 +1,147 @@
+// src/pages/EmployerDashboard.jsx
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import "./Dashboard.css";
+
+const EmployerDashboard = () => {
+  const [userName, setUserName] = useState("");
+  const [activeTab, setActiveTab] = useState("post"); // post or myJobs
+  const [jobs, setJobs] = useState([]);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    location: "",
+  });
+  const [error, setError] = useState("");
+
+  const employerId = localStorage.getItem("userId") || 1; // fallback id
+
+  // Dummy data fallback
+  const dummyJobs = [
+    { id: 101, title: "Frontend Developer", description: "React.js required", location: "Remote" },
+    { id: 102, title: "Backend Developer", description: "Node.js & Express", location: "Bangalore" },
+    { id: 103, title: "UI/UX Designer", description: "Figma & Adobe XD", location: "Chennai" },
+  ];
+
+  useEffect(() => {
+    const name = localStorage.getItem("userName") || "Employer";
+    setUserName(name);
+
+    fetchMyJobs();
+  }, []);
+
+  const fetchMyJobs = async () => {
+    try {
+      const response = await axios.get(`http://localhost:5290/api/Jobs/employer/${employerId}`);
+      if (response.status === 200) {
+        setJobs(response.data);
+      } else {
+        setJobs(dummyJobs);
+      }
+    } catch (err) {
+      setJobs(dummyJobs);
+    }
+  };
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handlePostJob = async (e) => {
+    e.preventDefault();
+    try {
+      const jobData = { ...formData, employerId };
+      const response = await axios.post("http://localhost:5290/api/Jobs", jobData);
+      if (response.status === 200 || response.status === 201) {
+        alert("Job posted successfully!");
+        setFormData({ title: "", description: "", location: "" });
+        fetchMyJobs();
+      }
+    } catch (err) {
+      setError("Failed to post job. Using dummy data fallback.");
+      setJobs(dummyJobs);
+    }
+  };
+
+  return (
+    <div className="dashboard-page">
+      <h1 className="dashboard-title">Welcome {userName}</h1>
+      <p className="dashboard-subtitle">Empower talent by posting jobs and managing your listings.</p>
+
+      {/* Tabs */}
+      <div className="flex gap-4 my-6">
+        <button
+          className={`tab-btn ${activeTab === "post" ? "active" : ""}`}
+          onClick={() => setActiveTab("post")}
+        >
+          Post Job
+        </button>
+        <button
+          className={`tab-btn ${activeTab === "myJobs" ? "active" : ""}`}
+          onClick={() => setActiveTab("myJobs")}
+        >
+          My Posted Jobs
+        </button>
+      </div>
+
+      {activeTab === "post" && (
+        <div className="dashboard-card p-6 max-w-md">
+          {error && <p className="text-red-500 mb-2">{error}</p>}
+          <form onSubmit={handlePostJob} className="space-y-4">
+            <input
+              type="text"
+              name="title"
+              placeholder="Job Title"
+              value={formData.title}
+              onChange={handleChange}
+              required
+              className="input-field"
+            />
+            <textarea
+              name="description"
+              placeholder="Job Description"
+              value={formData.description}
+              onChange={handleChange}
+              required
+              className="input-field"
+            />
+            <input
+              type="text"
+              name="location"
+              placeholder="Location"
+              value={formData.location}
+              onChange={handleChange}
+              required
+              className="input-field"
+            />
+            <button type="submit" className="submit-btn">
+              Post Job
+            </button>
+          </form>
+        </div>
+      )}
+
+      {activeTab === "myJobs" && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+          {jobs.length > 0 ? (
+            jobs.map((job) => (
+              <div key={job.id} className="dashboard-card p-4">
+                <h3 className="font-bold text-lg">{job.title}</h3>
+                <p className="text-gray-700">{job.description}</p>
+                <p className="text-gray-500 mt-2">Location: {job.location}</p>
+              </div>
+            ))
+          ) : (
+            <p>No jobs posted yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default EmployerDashboard;
+
 // src/pages/JobSeekerDashboard.jsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
