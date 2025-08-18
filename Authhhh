@@ -1,3 +1,139 @@
+// src/pages/EmployerDashboard.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import "./Dashboard.css";
+
+const EmployerDashboard = () => {
+  const [activeTab, setActiveTab] = useState("myJobs"); // myJobs or postJob
+  const [jobs, setJobs] = useState([]);
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    location: "",
+    salary: "",
+  });
+
+  const employerId = 1; // Replace with logged-in employer ID or from auth
+
+  const dummyJobs = [
+    {
+      id: 101,
+      title: "Frontend Developer",
+      description: "React.js, HTML, CSS",
+      location: "Chennai",
+      salary: "25k-35k",
+    },
+    {
+      id: 102,
+      title: "Backend Developer",
+      description: "C#, .NET, SQL",
+      location: "Bangalore",
+      salary: "30k-40k",
+    },
+  ];
+
+  // Fetch jobs posted by employer
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await axios.get(
+          `http://localhost:5290/api/Jobs/employer/${employerId}`
+        );
+        setJobs(res.data.length ? res.data : dummyJobs);
+      } catch (err) {
+        console.log("Error fetching jobs, using dummy data", err);
+        setJobs(dummyJobs);
+      }
+    };
+
+    fetchJobs();
+  }, []);
+
+  const handleChange = (e) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
+
+  const handlePostJob = async (e) => {
+    e.preventDefault();
+    const jobPayload = { ...formData, employerId };
+
+    try {
+      const res = await axios.post("http://localhost:5290/api/Jobs", jobPayload);
+      setJobs([...jobs, res.data]);
+      setFormData({ title: "", description: "", location: "", salary: "" });
+      setActiveTab("myJobs");
+    } catch (err) {
+      console.log("Error posting job, adding dummy", err);
+      setJobs([...jobs, { ...jobPayload, id: Date.now() }]);
+      setFormData({ title: "", description: "", location: "", salary: "" });
+      setActiveTab("myJobs");
+    }
+  };
+
+  return (
+    <div className="dashboard-page">
+      <h1 className="dashboard-title">Welcome Employer!</h1>
+
+      <div style={{ marginBottom: "20px" }}>
+        <button onClick={() => setActiveTab("myJobs")}>My Jobs</button>
+        <button onClick={() => setActiveTab("postJob")}>Post Job</button>
+      </div>
+
+      {activeTab === "myJobs" && (
+        <div className="dashboard-cards-container">
+          {jobs.map((job) => (
+            <div key={job.id} className="dashboard-card">
+              <h3>{job.title}</h3>
+              <p>{job.description}</p>
+              <p>Location: {job.location}</p>
+              <p>Salary: {job.salary}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {activeTab === "postJob" && (
+        <form onSubmit={handlePostJob} style={{ maxWidth: "500px" }}>
+          <input
+            type="text"
+            name="title"
+            placeholder="Job Title"
+            value={formData.title}
+            onChange={handleChange}
+            required
+          />
+          <textarea
+            name="description"
+            placeholder="Job Description"
+            value={formData.description}
+            onChange={handleChange}
+            required
+          />
+          <input
+            type="text"
+            name="location"
+            placeholder="Location"
+            value={formData.location}
+            onChange={handleChange}
+            required
+          />
+          <input
+            type="text"
+            name="salary"
+            placeholder="Salary"
+            value={formData.salary}
+            onChange={handleChange}
+            required
+          />
+          <button type="submit">Post Job</button>
+        </form>
+      )}
+    </div>
+  );
+};
+
+export default EmployerDashboard;
+
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
