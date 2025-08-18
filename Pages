@@ -1,0 +1,220 @@
+// src/pages/EmployerDashboard.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+
+export default function EmployerDashboard() {
+  const [jobs, setJobs] = useState([]);
+  const [title, setTitle] = useState("");
+  const [desc, setDesc] = useState("");
+  const [applications, setApplications] = useState([]);
+
+  // Fetch jobs posted by employer
+  useEffect(() => {
+    axios.get("http://localhost:5290/api/Employer/jobs") // adjust URL
+      .then((res) => setJobs(res.data))
+      .catch((err) => console.error(err));
+  }, []);
+
+  // Post a new job
+  const handlePostJob = () => {
+    axios.post("http://localhost:5290/api/Employer/post-job", {
+      title,
+      description: desc,
+    })
+    .then((res) => {
+      alert("Job Posted!");
+      setJobs([...jobs, res.data]);
+    })
+    .catch((err) => alert("Error posting job"));
+  };
+
+  // Fetch applications
+  const fetchApplications = () => {
+    axios.get("http://localhost:5290/api/Employer/applications")
+      .then((res) => setApplications(res.data))
+      .catch((err) => console.error(err));
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-r from-purple-500 to-pink-500 text-white p-6">
+      <h1 className="text-3xl font-bold mb-6">Employer Dashboard</h1>
+
+      {/* Post Job */}
+      <div className="bg-white/20 p-4 rounded-2xl shadow-lg mb-6">
+        <h2 className="text-xl font-semibold mb-2">Post a Job</h2>
+        <input
+          type="text"
+          placeholder="Job Title"
+          className="w-full p-2 rounded mb-2 text-black"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <textarea
+          placeholder="Job Description"
+          className="w-full p-2 rounded mb-2 text-black"
+          value={desc}
+          onChange={(e) => setDesc(e.target.value)}
+        />
+        <button
+          onClick={handlePostJob}
+          className="bg-pink-600 hover:bg-pink-700 px-4 py-2 rounded-xl"
+        >
+          Post Job
+        </button>
+      </div>
+
+      {/* Jobs List */}
+      <div className="bg-white/20 p-4 rounded-2xl shadow-lg mb-6">
+        <h2 className="text-xl font-semibold mb-2">Jobs Posted</h2>
+        {jobs.length === 0 ? (
+          <p>No jobs posted yet.</p>
+        ) : (
+          jobs.map((job, idx) => (
+            <div key={idx} className="bg-white/10 p-3 rounded-lg mb-2">
+              <h3 className="font-bold">{job.title}</h3>
+              <p>{job.description}</p>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Applications */}
+      <div className="bg-white/20 p-4 rounded-2xl shadow-lg">
+        <h2 className="text-xl font-semibold mb-2">Applications</h2>
+        <button
+          onClick={fetchApplications}
+          className="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-xl mb-3"
+        >
+          Load Applications
+        </button>
+        {applications.length === 0 ? (
+          <p>No applications yet.</p>
+        ) : (
+          applications.map((app, idx) => (
+            <div key={idx} className="bg-white/10 p-3 rounded-lg mb-2">
+              <p><strong>Name:</strong> {app.applicantName}</p>
+              <p><strong>Email:</strong> {app.email}</p>
+              <p><strong>Job Applied:</strong> {app.jobTitle}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// src/pages/JobSeekerDashboard.jsx
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+
+export default function JobSeekerDashboard() {
+  const [profile, setProfile] = useState(null);
+  const [jobs, setJobs] = useState([]);
+
+  const [name, setName] = useState("");
+  const [skills, setSkills] = useState("");
+
+  // Fetch available jobs
+  useEffect(() => {
+    axios.get("http://localhost:5290/api/Jobs")
+      .then((res) => setJobs(res.data))
+      .catch((err) => console.error(err));
+  }, []);
+
+  // Create Profile
+  const handleCreateProfile = () => {
+    axios.post("http://localhost:5290/api/JobSeeker/profile", {
+      name,
+      skills,
+    })
+    .then((res) => {
+      alert("Profile Created!");
+      setProfile(res.data);
+    })
+    .catch((err) => alert("Error creating profile"));
+  };
+
+  // Delete Profile
+  const handleDeleteProfile = () => {
+    axios.delete("http://localhost:5290/api/JobSeeker/profile")
+      .then(() => {
+        alert("Profile Deleted!");
+        setProfile(null);
+      })
+      .catch((err) => alert("Error deleting profile"));
+  };
+
+  // Apply to a Job
+  const handleApplyJob = (jobId) => {
+    axios.post(`http://localhost:5290/api/JobSeeker/apply/${jobId}`)
+      .then(() => alert("Applied Successfully!"))
+      .catch((err) => alert("Error applying"));
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-r from-pink-500 to-purple-500 text-white p-6">
+      <h1 className="text-3xl font-bold mb-6">JobSeeker Dashboard</h1>
+
+      {/* Profile Section */}
+      <div className="bg-white/20 p-4 rounded-2xl shadow-lg mb-6">
+        <h2 className="text-xl font-semibold mb-2">My Profile</h2>
+        {profile ? (
+          <div>
+            <p><strong>Name:</strong> {profile.name}</p>
+            <p><strong>Skills:</strong> {profile.skills}</p>
+            <button
+              onClick={handleDeleteProfile}
+              className="bg-red-600 hover:bg-red-700 px-4 py-2 mt-2 rounded-xl"
+            >
+              Delete Profile
+            </button>
+          </div>
+        ) : (
+          <div>
+            <input
+              type="text"
+              placeholder="Your Name"
+              className="w-full p-2 rounded mb-2 text-black"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              type="text"
+              placeholder="Your Skills"
+              className="w-full p-2 rounded mb-2 text-black"
+              value={skills}
+              onChange={(e) => setSkills(e.target.value)}
+            />
+            <button
+              onClick={handleCreateProfile}
+              className="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-xl"
+            >
+              Create Profile
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Jobs Section */}
+      <div className="bg-white/20 p-4 rounded-2xl shadow-lg">
+        <h2 className="text-xl font-semibold mb-2">Available Jobs</h2>
+        {jobs.length === 0 ? (
+          <p>No jobs available yet.</p>
+        ) : (
+          jobs.map((job, idx) => (
+            <div key={idx} className="bg-white/10 p-3 rounded-lg mb-2">
+              <h3 className="font-bold">{job.title}</h3>
+              <p>{job.description}</p>
+              <button
+                onClick={() => handleApplyJob(job.id)}
+                className="bg-blue-600 hover:bg-blue-700 px-4 py-2 mt-2 rounded-xl"
+              >
+                Apply
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
