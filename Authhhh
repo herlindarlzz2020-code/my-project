@@ -1,3 +1,108 @@
+// src/pages/JobSeekerDashboard.jsx
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import "./Dashboard.css";
+
+const dummyJobs = [
+  { id: 1, title: "Frontend Developer", company: "Tech Corp", location: "Remote", description: "Build amazing UIs." },
+  { id: 2, title: "Backend Developer", company: "Data Systems", location: "Chennai", description: "Work with APIs and DBs." },
+  { id: 3, title: "Fullstack Engineer", company: "InnovateX", location: "Bangalore", description: "Work on end-to-end solutions." },
+];
+
+const JobSeekerDashboard = () => {
+  const [userName, setUserName] = useState("");
+  const [jobs, setJobs] = useState([]);
+  const [appliedJobs, setAppliedJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("search"); 
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const name = localStorage.getItem("userName") || "Job Seeker";
+    setUserName(name);
+
+    const fetchJobs = async () => {
+      try {
+        const res = await axios.get("http://localhost:5290/api/Job");
+        setJobs(res.data);
+      } catch (err) {
+        setJobs(dummyJobs);
+      }
+      setLoading(false);
+    };
+
+    const fetchAppliedJobs = async () => {
+      try {
+        const userId = localStorage.getItem("userId") || 1;
+        const res = await axios.get(`http://localhost:5290/api/Application/jobseeker/${userId}`);
+        setAppliedJobs(res.data);
+      } catch (err) {
+        setAppliedJobs([]);
+      }
+    };
+
+    fetchJobs();
+    fetchAppliedJobs();
+  }, []);
+
+  const handleApply = (job) => {
+    setAppliedJobs([...appliedJobs, job]);
+  };
+
+  if (loading) return <p className="loading">Loading...</p>;
+
+  return (
+    <div className="dashboard-page">
+      <header className="dashboard-header">
+        <h1>Welcome,JobSeeker!</h1>
+        <p className="quote">"Opportunities don't happen. You create them."</p>
+      </header>
+
+      <div className="tabs">
+        <button
+          className={activeTab === "search" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("search")}
+        >
+          Search Jobs
+        </button>
+        <button
+          className={activeTab === "applied" ? "tab active" : "tab"}
+          onClick={() => setActiveTab("applied")}
+        >
+          Applied Jobs
+        </button>
+      </div>
+
+      <div className="jobs-grid">
+        {activeTab === "search" &&
+          jobs.map((job) => (
+            <div key={job.id} className="job-card">
+              <h3>{job.title}</h3>
+              <p className="company">{job.company} - {job.location}</p>
+              <p className="desc">{job.description}</p>
+              <button className="apply-btn" onClick={() => handleApply(job)}>Apply Job</button>
+            </div>
+          ))}
+
+        {activeTab === "applied" &&
+          (appliedJobs.length > 0 ? (
+            appliedJobs.map((job) => (
+              <div key={job.id} className="job-card applied">
+                <h3>{job.title}</h3>
+                <p className="company">{job.company} - {job.location}</p>
+                <p className="desc">{job.description}</p>
+                <button className="applied-btn" disabled>Applied</button>
+              </div>
+            ))
+          ) : (
+            <p className="no-applied">You have not applied to any jobs yet.</p>
+          ))}
+      </div>
+    </div>
+  );
+};
+
+export default JobSeekerDashboard;
+
 // src/pages/EmployerDashboard.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
