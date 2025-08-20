@@ -1,0 +1,307 @@
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
+{
+    private readonly AppDbContext _context;
+    private readonly IConfiguration _config;
+
+    public AuthController(AppDbContext context, IConfiguration config)
+    {
+        _context = context;
+        _config = config;
+    }
+
+    [HttpPost("register")]
+    public async Task<IActionResult> Register(User user)
+    {
+        if (await _context.Users.AnyAsync(u => u.Email == user.Email))
+            return BadRequest("User already exists");
+
+        user.IsDeleted = false;
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+        return Ok(user);
+    }
+
+    [HttpPost("login")]
+    public async Task<IActionResult> Login([FromBody] LoginDto dto)
+    {
+        var user = await _context.Users
+            .FirstOrDefaultAsync(u => u.Email == dto.Email && u.Password == dto.Password && !u.IsDeleted);
+
+        if (user == null)
+            return Unauthorized("Invalid credentials");
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.NameIdentifier, user.Uid.ToString()),
+            new Claim(ClaimTypes.Role, user.UserRole.ToString())
+        };
+
+        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]));
+        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            _config["Jwt:Issuer"],
+            _config["Jwt:Audience"],
+            claims,
+            expires: DateTime.Now.AddHours(2),
+            signingCredentials: creds);
+
+        return Ok(new { token = new JwtSecurityTokenHandler().WriteToken(token), role = user.UserRole });
+    }
+}
+
+public class LoginDto
+{
+    public string Email { get; set; }
+    public string Password { get; set; }
+}
+
+[ApiController]
+[Route("api/[controller]")]
+public class JobSeekersController : ControllerBase
+{
+    private readonly IJobSeekerRepository _repo;
+    private readonly IApplicationRepository _appRepo;
+
+    public JobSeekersController(IJobSeekerRepository repo, IApplicationRepository appRepo)
+    {
+        _repo = repo;
+        _appRepo = appRepo;
+    }
+
+    [Authorize(Roles = "JobSeeker")]
+    [HttpGet("profile")]
+    public async Task<IActionResult> GetProfile()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var profile = await _repo.GetByIdAsync(userId);
+        return Ok(profile);
+    }
+
+    [Authorize(Roles = "JobSeeker")]
+    [HttpPut("profile")]
+    public async Task<IActionResult> UpdateProfile([FromBody] JobSeeker update)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        await _repo.UpdateProfileAsync(userId, update);
+        return Ok("Profile updated");
+    }
+
+    [Authorize(Roles = "JobSeeker")]
+    [HttpGet("jobs")]
+    public async Task<IActionResult> BrowseJobs()
+    {
+        var jobs = await _repo.GetAllJobsAsync();
+        return Ok(jobs);
+    }
+
+    [Authorize(Roles = "JobSeeker")]
+    [HttpPost("apply/{jobId}")]
+    public async Task<IActionResult> Apply(int jobId)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        await _appRepo.ApplyJobAsync(userId, jobId);
+        return Ok("Application submitted");
+    }
+
+    [Authorize(Roles = "JobSeeker")]
+    [HttpGet("applications")]
+    public async Task<IActionResult> MyApplications()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var apps = await _appRepo.GetByJobSeekerIdAsync(userId);
+        return Ok(apps);
+    }
+}
+[ApiController]
+[Route("api/[controller]")]
+public class EmployerController : ControllerBase
+{
+    private readonly IEmployerRepository _repo;
+    private readonly IApplicationRepository _appRepo;
+
+    public EmployerController(IEmployerRepository repo, IApplicationRepository appRepo)
+    {
+        _repo = repo;
+        _appRepo = appRepo;
+    }
+
+    [Authorize(Roles = "Employer")]
+    [HttpPost("jobs")]
+    public async Task<IActionResult> PostJob([FromBody] JobListing job)
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        job.EmployerId = employerId;
+        await _repo.PostJobAsync(job);
+        return Ok(job);
+    }
+
+    [Authorize(Roles = "Employer")]
+    [HttpGet("jobs")]
+    public async Task<IActionResult> MyJobs()
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var jobs = await _repo.GetJobsByEmployerAsync(employerId);
+        return Ok(jobs);
+    }
+
+    [Authorize(Roles = "Employer")]
+    [HttpGet("applications/{jobId}")]
+    public async Task<IActionResult> Applicants(int jobId)
+    {
+        var apps = await _appRepo.GetByJobIdAsync(jobId);
+        return Ok(apps);
+    }
+
+    [Authorize(Roles = "Employer")]
+    [HttpPut("applications/{applicationId}/select")]
+    public async Task<IActionResult> SelectApplicant(int applicationId)
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var updated = await _appRepo.SelectApplicantAsync(applicationId, employerId);
+        if (!updated) return Forbid();
+        return Ok("Applicant selected");
+    }
+}
+
+[ApiController]
+[Route("api/[controller]")]
+public class AdminController : ControllerBase
+{
+    private readonly IUserRepository _repo;
+
+    public AdminController(IUserRepository repo)
+    {
+        _repo = repo;
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("users")]
+    public async Task<IActionResult> GetUsers()
+    {
+        var users = await _repo.GetAllAsync();
+        return Ok(users);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("delete/{id}")]
+    public async Task<IActionResult> DeleteUser(int id)
+    {
+        var success = await _repo.SoftDeleteAsync(id);
+        if (!success) return NotFound();
+        return Ok("User soft deleted");
+    }
+}
+
+[ApiController]
+[Route("api/[controller]")]
+public class JobController : ControllerBase
+{
+    private readonly IJobRepository _jobRepo;
+
+    public JobController(IJobRepository jobRepo)
+    {
+        _jobRepo = jobRepo;
+    }
+
+    // ✅ Everyone can browse jobs
+    [HttpGet]
+    public async Task<IActionResult> GetAllJobs()
+    {
+        var jobs = await _jobRepo.GetAllAsync();
+        return Ok(jobs);
+    }
+
+    // ✅ Get single job detail
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetJob(int id)
+    {
+        var job = await _jobRepo.GetByIdAsync(id);
+        if (job == null) return NotFound();
+        return Ok(job);
+    }
+
+    // ✅ Employer-only: update job
+    [Authorize(Roles = "Employer")]
+    [HttpPut("{id}")]
+    public async Task<IActionResult> UpdateJob(int id, [FromBody] JobListing job)
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var updated = await _jobRepo.UpdateJobAsync(id, employerId, job);
+        if (!updated) return Forbid();
+        return Ok("Job updated");
+    }
+
+    // ✅ Employer-only: delete job (soft delete)
+    [Authorize(Roles = "Employer")]
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> DeleteJob(int id)
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var deleted = await _jobRepo.SoftDeleteAsync(id, employerId);
+        if (!deleted) return Forbid();
+        return Ok("Job deleted");
+    }
+}
+
+[ApiController]
+[Route("api/[controller]")]
+public class ApplicationController : ControllerBase
+{
+    private readonly IApplicationRepository _appRepo;
+
+    public ApplicationController(IApplicationRepository appRepo)
+    {
+        _appRepo = appRepo;
+    }
+
+    // ✅ JobSeeker: apply to job
+    [Authorize(Roles = "JobSeeker")]
+    [HttpPost("apply/{jobId}")]
+    public async Task<IActionResult> Apply(int jobId)
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var applied = await _appRepo.ApplyJobAsync(userId, jobId);
+        if (!applied) return BadRequest("Already applied or invalid job");
+        return Ok("Application submitted");
+    }
+
+    // ✅ JobSeeker: view my apps
+    [Authorize(Roles = "JobSeeker")]
+    [HttpGet("mine")]
+    public async Task<IActionResult> GetMyApplications()
+    {
+        var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var apps = await _appRepo.GetByJobSeekerIdAsync(userId);
+        return Ok(apps);
+    }
+
+    // ✅ Employer: see all applications for a job
+    [Authorize(Roles = "Employer")]
+    [HttpGet("job/{jobId}")]
+    public async Task<IActionResult> GetApplicationsForJob(int jobId)
+    {
+        var apps = await _appRepo.GetByJobIdAsync(jobId);
+        return Ok(apps);
+    }
+
+    // ✅ Employer: select applicant
+    [Authorize(Roles = "Employer")]
+    [HttpPut("{applicationId}/select")]
+    public async Task<IActionResult> SelectApplicant(int applicationId)
+    {
+        var employerId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier).Value);
+        var updated = await _appRepo.SelectApplicantAsync(applicationId, employerId);
+        if (!updated) return Forbid();
+        return Ok("Applicant selected");
+    }
+}
