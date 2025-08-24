@@ -1,0 +1,327 @@
+import React, { useEffect, useMemo, useState, useContext } from "react";
+import { AuthContext } from "../Context/AuthContext";
+import api from "../services/api";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./EmployerDashboard.css";
+
+const field = (label, name, type = "text", value, onChange, required = true) => (
+  <div className="mb-3">
+    <label className="form-label fw-semibold text-secondary">{label}</label>
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="form-control rounded-3 shadow-sm"
+      required={required}
+    />
+  </div>
+);
+
+function EmployerDashboard() {
+  const { auth } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+
+  const [jobs, setJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    qualifications: "",
+    location: "",
+    salary: "",
+  });
+  const [editingJobId, setEditingJobId] = useState(null);
+
+  const [appModalJob, setAppModalJob] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [appLoading, setAppLoading] = useState(false);
+
+  const employerId = profile?.employerId;
+  const totalJobs = jobs.length;
+  const activeJobs = useMemo(() => jobs.filter((j) => j.isActive).length, [jobs]);
+
+  useEffect(() => {
+    if (!auth) return;
+    const run = async () => {
+      try {
+        const prof = await api.get(`/Employer/user/${auth.userId}`);
+        setProfile(prof.data);
+        const jobRes = await api.get(`/Job/employer/${prof.data.employerId}`);
+        setJobs(jobRes.data || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [auth]);
+
+  const onFormChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const resetForm = () => {
+    setEditingJobId(null);
+    setForm({ title: "", description: "", qualifications: "", location: "", salary: "" });
+  };
+
+  const submitJob = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        employerId,
+        title: form.title,
+        description: form.description,
+        qualifications: form.qualifications,
+        location: form.location,
+        salary: Number(form.salary),
+        companyName: profile.companyName,
+        postedDate: new Date().toISOString(),
+        isActive: true,
+      };
+      if (editingJobId) await api.put(`/Job/${editingJobId}`, payload);
+      else await api.post("/Job", payload);
+      const jobRes = await api.get(`/Job/employer/${employerId}`);
+      setJobs(jobRes.data || []);
+      resetForm();
+      setActiveTab("manage");
+    } catch (err) {
+      alert("Failed to save job. Check console.");
+      console.error(err);
+    }
+  };
+
+  const editJob = (job) => {
+    setEditingJobId(job.jobId);
+    setForm({
+      title: job.title || "",
+      description: job.description || "",
+      qualifications: job.qualifications || "",
+      location: job.location || "",
+      salary: job.salary || "",
+    });
+    setActiveTab("post");
+  };
+
+  const deleteJob = async (jobId) => {
+    if (!window.confirm("Delete this job?")) return;
+    try {
+      await api.delete(`/Job/${jobId}`);
+      const jobRes = await api.get(`/Job/employer/${employerId}`);
+      setJobs(jobRes.data || []);
+    } catch (err) {
+      alert("Delete failed.");
+      console.error(err);
+    }
+  };
+
+  const openApplications = async (job) => {
+    setAppModalJob(job);
+    setAppLoading(true);
+    try {
+      const res = await api.get(`/Application/job/${job.jobId}`);
+      const apps = res.data || [];
+
+      const enriched = await Promise.all(
+        apps.map(async (a) => {
+          const [jsRes, resumeRes] = await Promise.all([
+            api.get(`/JobSeekers/${a.jobSeekerId}`),
+            api.get(`/Resume/jobseeker/${a.jobSeekerId}`),
+          ]);
+          return {
+            ...a,
+            jobSeeker: jsRes.data,
+            resume: resumeRes.data || [],
+          };
+        })
+      );
+      setApplications(enriched);
+    } catch (err) {
+      console.error(err);
+      setApplications([]);
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+  const updateAppStatus = async (applicationId, status) => {
+    try {
+      await api.put(
+        `/Application/${applicationId}/status`,
+        JSON.stringify(status),
+        { headers: { "Content-Type": "application/json" } }
+      );
+      setApplications((apps) =>
+        apps.map((a) =>
+          a.applicationId === applicationId ? { ...a, status } : a
+        )
+      );
+    } catch (err) {
+      alert("Failed to update status");
+      console.error(err);
+    }
+  };
+
+  if (!auth) return <div className="container mt-5 text-danger">Please login</div>;
+  if (loading) return <div className="container mt-5">Loading dashboard…</div>;
+
+  return (
+    <div className="dashboard-bg">
+      <div className="container py-4">
+        {/* HERO PROFILE SECTION */}
+        <div className="hero-card">
+          <h2 className="fw-bold mb-2">Welcome, {profile?.firstName || "Employer"}!</h2>
+          <p className="mb-0">
+            <strong>Company:</strong> {profile.companyName} |{" "}
+            <strong>Phone:</strong> {profile.phoneNumber}
+          </p>
+          {profile.website && (
+            <a href={profile.website} target="_blank" rel="noreferrer" className="hero-link">
+              {profile.website}
+            </a>
+          )}
+        </div>
+
+        {/* STATS */}
+        <div className="row justify-content-center mt-4 g-4">
+          <div className="col-md-4">
+            <div className="stat-card">
+              <h6 className="text-muted">Jobs Posted</h6>
+              <h1 className="fw-bold text-primary">{totalJobs}</h1>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="stat-card">
+              <h6 className="text-muted">Active Jobs</h6>
+              <h1 className="fw-bold text-success">{activeJobs}</h1>
+            </div>
+          </div>
+        </div>
+
+        {/* NAV TABS */}
+        <ul className="nav nav-pills mt-5 gap-2 justify-content-center">
+          {["overview", "post", "manage", "profile"].map((tab) => (
+            <li key={tab} className="nav-item">
+              <button
+                className={`nav-link ${activeTab === tab ? "active" : ""}`}
+                onClick={() => {
+                  if (tab === "post") resetForm();
+                  setActiveTab(tab);
+                }}
+              >
+                {tab === "overview"
+                  ? "Overview"
+                  : tab === "post"
+                  ? editingJobId
+                    ? "Edit Job"
+                    : "Post Job"
+                  : tab === "manage"
+                  ? "Manage Jobs"
+                  : "Profile"}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {/* TAB CONTENTS */}
+        <div className="mt-4">
+          {/* Overview */}
+          {activeTab === "overview" && (
+            <div className="row g-4">
+              {jobs.length === 0 ? (
+                <p className="text-muted">No jobs yet. Post your first job!</p>
+              ) : (
+                jobs.slice(0, 5).map((j) => (
+                  <div key={j.jobId} className="col-md-6">
+                    <div className="overview-card">
+                      <h5 className="fw-bold">{j.title}</h5>
+                      <p className="small text-muted mb-1">
+                        {j.location} • ₹{j.salary}
+                      </p>
+                      <p>{j.description}</p>
+                      <div className="d-flex justify-content-end gap-2">
+                        <button className="btn btn-sm btn-outline-primary" onClick={() => editJob(j)}>
+                          Edit
+                        </button>
+                        <button className="btn btn-sm btn-outline-dark" onClick={() => openApplications(j)}>
+                          Applications
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Other tabs remain same (Post, Manage, Profile, Applications Modal) */}
+        </div>
+      </div>
+    </div>
+  );
+}
+export default EmployerDashboard;/* Background */
+.dashboard-bg {
+  min-height: 100vh;
+  background: #f9fafb;
+  padding-bottom: 50px;
+}
+
+/* Hero section */
+.hero-card {
+  padding: 24px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: white;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+.hero-link {
+  color: white;
+  text-decoration: underline;
+}
+
+/* Stat cards */
+.stat-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-top: 3px solid #6366f1;
+  transition: transform 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Nav tabs */
+.nav-pills .nav-link {
+  border-radius: 20px;
+  padding: 8px 20px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+.nav-pills .nav-link.active {
+  background-color: #fff !important;
+  color: #333 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+.nav-pills .nav-link:hover {
+  background-color: #f3f4f6;
+}
+
+/* Overview cards */
+.overview-card {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.overview-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border: 1px solid #6366f1;
+}
