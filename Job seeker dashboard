@@ -1,4 +1,4 @@
-// src/Pages/JobseekerDashboard.js
+8// src/Pages/JobseekerDashboard.js
 import React, { useEffect, useState, useContext } from "react";
 import { AuthContext } from "../Context/AuthContext";
 import api from "../services/api";
@@ -511,4 +511,75 @@ h5.fw-bold, h4.fw-bold, h6.fw-bold {
 .nav-pills .nav-link.active {
   background: linear-gradient(135deg, #6366f1, #9333ea);
   color: #fff !important;
+}
+
+{/* OVERVIEW */}
+{activeTab === "overview" && (
+  <>
+    <div
+      className="p-4 mb-4 rounded-4 shadow-lg text-white hero-card"
+      style={{
+        background: "linear-gradient(135deg, #6a11cb, #2575fc)",
+        backdropFilter: "blur(12px)",
+      }}
+    >
+      <h2 className="fw-bold">
+        Welcome, {jobseeker.firstName} {jobseeker.lastName} 🎉
+      </h2>
+      <div className="d-flex flex-wrap gap-4 mt-3">
+        <div><strong>🎓 Qualification:</strong> {jobseeker.qualification}</div>
+        <div><strong>💡 Skills:</strong> {jobseeker.skills}</div>
+        <div><strong>📞 Phone:</strong> {jobseeker.phone}</div>
+      </div>
+    </div>
+
+    {/* Quick Stats */}
+    <div className="row g-4 mb-4">
+      <div className="col-md-4">
+        <div className="stat-card text-center p-3 rounded-3 shadow-sm">
+          <h6 className="text-muted">Resume</h6>
+          <h4 className="fw-bold">
+            {resume ? "✅ Uploaded" : "❌ Not Uploaded"}
+          </h4>
+        </div>
+      </div>
+      <div className="col-md-4">
+        <div className="stat-card text-center p-3 rounded-3 shadow-sm">
+          <h6 className="text-muted">Applications</h6>
+          <h4 className="fw-bold">{applications.length}</h4>
+        </div>
+      </div>
+    </div>
+
+    {/* Recent Applications */}
+    <div className="card glass-card p-3">
+      <h5 className="fw-bold">📌 Recent Applications</h5>
+      {applications.length === 0 ? (
+        <p className="text-muted">No applications yet.</p>
+      ) : (
+        <ul className="list-group list-group-flush">
+          {applications.slice(0, 2).map((app) => {
+            const job = jobs.find((j) => j.jobId === app.jobId);
+            return (
+              <li key={app.applicationId} className="list-group-item">
+                <strong>{job ? job.title : `Job ${app.jobId}`}</strong> —{" "}
+                <span className="text-muted">{app.status}</span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  </>
+)}
+
+/* Small stat cards */
+.stat-card {
+  background: #fff;
+  border-radius: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: transform 0.2s ease;
+}
+.stat-card:hover {
+  transform: translateY(-4px);
 }
