@@ -101,3 +101,102 @@ export default Navbar;
   border-radius: 20px;
   font-weight: 500;
 }
+
+import React from "react";
+import { Link } from "react-router-dom";
+import { AuthContext } from "../Context/AuthContext";
+import "./Navbar.css";
+
+export default function Navbar() {
+  const { auth, logout } = React.useContext(AuthContext);
+
+  return (
+    <nav className="navbar navbar-expand-lg navbar-dark bg-dark px-3 shadow-sm">
+      <Link to="/" className="navbar-brand fw-bold">
+        CareerLync
+      </Link>
+
+      <div className="ms-auto d-flex align-items-center gap-2">
+        {auth ? (
+          <>
+            
+            <button className="btn btn-outline-light btn-sm" onClick={logout}>
+              Logout
+            </button>
+          </>
+        ) : (
+          <>
+            <Link to="/login" className="btn btn-outline-light btn-sm">
+              Login
+            </Link>
+            <Link to="/register" className="btn btn-primary btn-sm">
+              Register
+            </Link>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import Navbar from "./Components/Navbar";  // 👈 import here
+import HomePage from "./Pages/HomePage";
+
+import Register from "./Pages/Register";
+import EmployerDashboard from './Pages/EmployerDashboard';
+import JobseekerDashboard from './Pages/JobseekerDashboard';
+import { AuthProvider, AuthContext } from "./Context/AuthContext";
+import Login from "./Pages/Login";
+import ProfileSetup from "./Pages/ProfileSetup";
+
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        
+        <Navbar /> 
+          {/* 👈 reusable navbar */}
+        <div >
+          <Routes>
+            
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
+            <Route path="/profile-setup" element ={<ProfileSetup />} />
+
+            {/* Protected routes */}
+            <Route
+              path="/employer/dashboard"
+              element={
+                <RequireAuth role="employer">
+               <EmployerDashboard />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="/jobseeker/dashboard"
+              element={
+                <RequireAuth role="jobseeker">
+                  <JobseekerDashboard />
+                </RequireAuth>
+              }
+            />
+
+            <Route path="*" element={<Navigate to="/" />} />
+          </Routes>
+        </div>
+      </Router>
+    </AuthProvider>
+  );
+}
+
+function RequireAuth({ children, role }) {
+  const { auth } = React.useContext(AuthContext);
+  if (!auth) return <Navigate to="/login" />;
+  if (role && auth.role !== role) return <Navigate to="/" />;
+  return children;
+}
+
+export default App;
+
