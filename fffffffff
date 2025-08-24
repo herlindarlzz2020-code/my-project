@@ -1,0 +1,569 @@
+import React, { useEffect, useMemo, useState, useContext } from "react";
+import { AuthContext } from "../Context/AuthContext";
+import api from "../services/api";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./EmployerDashboard.css";
+
+const field = (label, name, type = "text", value, onChange, required = true) => (
+  <div className="mb-3">
+    <label className="form-label fw-semibold text-secondary">{label}</label>
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="form-control rounded-3 shadow-sm"
+      required={required}
+    />
+  </div>
+);
+
+function EmployerDashboard() {
+  const { auth } = useContext(AuthContext);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState(null);
+
+  const [jobs, setJobs] = useState([]);
+  const [activeTab, setActiveTab] = useState("overview");
+
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    qualifications: "",
+    location: "",
+    salary: "",
+  });
+  const [editingJobId, setEditingJobId] = useState(null);
+
+  const [appModalJob, setAppModalJob] = useState(null);
+  const [applications, setApplications] = useState([]);
+  const [appLoading, setAppLoading] = useState(false);
+
+  const employerId = profile?.employerId;
+  const totalJobs = jobs.length;
+  const activeJobs = useMemo(() => jobs.filter((j) => j.isActive).length, [jobs]);
+
+  useEffect(() => {
+    if (!auth) return;
+    const run = async () => {
+      try {
+        const prof = await api.get(`/Employer/user/${auth.userId}`);
+        setProfile(prof.data);
+        const jobRes = await api.get(`/Job/employer/${prof.data.employerId}`);
+        setJobs(jobRes.data || []);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    run();
+  }, [auth]);
+
+  const onFormChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const resetForm = () => {
+    setEditingJobId(null);
+    setForm({ title: "", description: "", qualifications: "", location: "", salary: "" });
+  };
+
+  const submitJob = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = {
+        employerId,
+        title: form.title,
+        description: form.description,
+        qualifications: form.qualifications,
+        location: form.location,
+        salary: Number(form.salary),
+        companyName: profile.companyName,
+        postedDate: new Date().toISOString(),
+        isActive: true,
+      };
+      if (editingJobId) await api.put(`/Job/${editingJobId}`, payload);
+      else await api.post("/Job", payload);
+      const jobRes = await api.get(`/Job/employer/${employerId}`);
+      setJobs(jobRes.data || []);
+      resetForm();
+      setActiveTab("manage");
+    } catch (err) {
+      alert("Failed to save job. Check console.");
+      console.error(err);
+    }
+  };
+
+  const editJob = (job) => {
+    setEditingJobId(job.jobId);
+    setForm({
+      title: job.title || "",
+      description: job.description || "",
+      qualifications: job.qualifications || "",
+      location: job.location || "",
+      salary: job.salary || "",
+    });
+    setActiveTab("post");
+  };
+
+  const deleteJob = async (jobId) => {
+    if (!window.confirm("Delete this job?")) return;
+    try {
+      await api.delete(`/Job/${jobId}`);
+      const jobRes = await api.get(`/Job/employer/${employerId}`);
+      setJobs(jobRes.data || []);
+    } catch (err) {
+      alert("Delete failed.");
+      console.error(err);
+    }
+  };
+
+  const openApplications = async (job) => {
+    setAppModalJob(job);
+    setAppLoading(true);
+    try {
+      const res = await api.get(`/Application/job/${job.jobId}`);
+      const apps = res.data || [];
+
+      // fetch jobseeker + resume details for each application
+      const enriched = await Promise.all(
+        apps.map(async (a) => {
+
+          const [jsRes, resumeRes] = await Promise.all([
+            api.get(`/JobSeekers/${a.jobSeekerId}`),   // Jobseeker profile
+            api.get(`/Resume/jobseeker/${a.jobSeekerId}`),
+
+          ]);
+          console.log(resumeRes)
+          return {
+            ...a,
+            jobSeeker: jsRes.data,
+            resume: resumeRes.data || [], // take first resume if exists
+
+
+          };
+
+        })
+      );
+
+      setApplications(enriched);
+
+    }
+    catch (err) {
+      console.error(err);
+      setApplications([]);
+    } finally {
+      setAppLoading(false);
+    }
+  };
+
+
+
+
+  const updateAppStatus = async (applicationId, status) => {
+    try {
+      await api.put(
+        `/Application/${applicationId}/status`,
+        JSON.stringify(status),
+        { headers: { "Content-Type": "application/json" } }
+      );
+
+      // update local state instead of refetching raw data
+      setApplications((apps) =>
+        apps.map((a) =>
+          a.applicationId === applicationId ? { ...a, status } : a
+        )
+      );
+    } catch (err) {
+      alert("Failed to update status");
+      console.error(err);
+    }
+  };
+
+
+  if (!auth) return <div className="container mt-5 text-danger">Please login</div>;
+  if (loading) return <div className="container mt-5">Loading dashboard…</div>;
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "linear-gradient(135deg,#e0eafc,#cfdef3)",
+        paddingBottom: "50px",
+      }}
+    >
+      <div className="container py-4">
+        {/* HERO PROFILE SECTION */}
+        <div
+          className="p-4 rounded-4 mb-4 text-white shadow-lg"
+          style={{
+            background: "linear-gradient(135deg, #667eea, #764ba2)",
+            backdropFilter: "blur(12px)",
+            border:"20px",
+            boxShadow:"0 6px 20px rgba(0,0,0,0,15)",
+            padding:"24px",
+            color:"white"
+          }}
+        >
+          <h2 className="fw-bold mb-2">Welcome, {profile?.firstName || "Employer"}!</h2>
+          <p className="mb-0">
+            <strong>Company:</strong> {profile.companyName} |{" "}
+            <strong>Phone:</strong> {profile.phoneNumber}
+          </p>
+          {profile.website && (
+            <a
+              href={profile.website}
+              target="_blank"
+              rel="noreferrer"
+              className="text-white text-decoration-underline"
+            >
+              {profile.website}
+            </a>
+          )}
+        </div>
+
+        {/* STATS */}
+        <div className="row justify-content-center mt-4 g-4 stat-card">
+          <div className="col-md-4">
+            <div className="card border-0 shadow-lg text-center p-4 h-100 glass-card">
+              <h6 className="text-muted">Jobs Posted</h6>
+              <h1 className="fw-bold text-primary">{totalJobs}</h1>
+            </div>
+          </div>
+          <div className="col-md-4">
+            <div className="card border-0 shadow-lg text-center p-4 h-100 glass-card">
+              <h6 className="text-muted">Active Jobs</h6>
+              <h1 className="fw-bold text-success">{activeJobs}</h1>
+            </div>
+          </div>
+        </div>
+
+        {/* NAV TABS */}
+        <ul className="nav nav-pills mt-5 gap-2 justify-content-center">
+          {["overview", "post", "manage", "profile"].map((tab) => (
+            <li key={tab} className="nav-item">
+              <button
+                className={`nav-link px-4 py-2 rounded-pill ${activeTab === tab ? "blue" : "text-dark"
+                  }`}
+                style={{
+                  background:
+                    activeTab === tab
+                      ? "linear-gradient(135deg, #667eea, #764ba2)"
+                      : "transparent",
+                  color: activeTab === tab ? "text-dark" : "#444",
+                  fontWeight: "500",
+                }}
+                onClick={() => {
+                  if (tab === "post") resetForm();
+                  setActiveTab(tab);
+                }}
+              >
+                {tab === "overview"
+                  ? "Overview"
+                  : tab === "post"
+                    ? editingJobId
+                      ? "Edit Job"
+                      : "Post Job"
+                    : tab === "manage"
+                      ? "Manage Jobs"
+                      : "Profile"}
+              </button>
+            </li>
+          ))}
+        </ul>
+
+        {/* TAB CONTENTS */}
+        <div className="mt-4">
+          {/* Overview as cards */}
+          {activeTab === "overview" && (
+            <div className="row g-4">
+              {jobs.length === 0 ? (
+                <p className="text-muted">No jobs yet. Post your first job!</p>
+              ) : (
+                jobs.slice(0, 5).map((j) => (
+                  <div key={j.jobId} className="col-md-6">
+                    <div className="card shadow-lg border-0 rounded-4 h-100">
+                      <div className="card-body overview-cards">
+                        <h5 className="fw-bold">{j.title}</h5>
+                        <p className="small text-muted mb-1">
+                          {j.location} • ₹{j.salary}
+                        </p>
+                        <p>{j.description}</p>
+                        <div className="d-flex justify-content-end gap-2">
+                          <button
+                            className="btn btn-sm btn-outline-primary"
+                            onClick={() => editJob(j)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            className="btn btn-sm btn-outline-dark"
+                            onClick={() => openApplications(j)}
+                          >
+                            Applications
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* Post / Edit job */}
+          {activeTab === "post" && (
+            <div className="card shadow-lg border-0 rounded-4">
+              <div className="card-body">
+                <h5 className="fw-bold mb-3">
+                  {editingJobId ? "Edit Job" : "Post New Job"}
+                </h5>
+                <form onSubmit={submitJob}>
+                  {field("Title", "title", "text", form.title, onFormChange)}
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold text-secondary">
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={form.description}
+                      onChange={onFormChange}
+                      className="form-control rounded-3 shadow-sm"
+                      rows={4}
+                      required
+                    />
+                  </div>
+                  {field("Qualifications", "qualifications", "text", form.qualifications, onFormChange)}
+                  {field("Location", "location", "text", form.location, onFormChange)}
+                  {field("Salary", "salary", "number", form.salary, onFormChange)}
+                  <div className="d-flex gap-2">
+                    <button type="submit" className="btn btn-primary px-4">
+                      {editingJobId ? "Update Job" : "Post Job"}
+                    </button>
+                    {editingJobId && (
+                      <button type="button" className="btn btn-outline-secondary px-4" onClick={resetForm}>
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Manage Jobs */}
+          {activeTab === "manage" && (
+            <div className="card shadow-lg border-0 rounded-4">
+              <div className="card-body">
+                <h5 className="fw-bold mb-3">Manage Jobs</h5>
+                {jobs.length === 0 ? (
+                  <p className="text-muted">No jobs found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table table-striped align-middle">
+                      <thead>
+                        <tr>
+                          <th>Title</th>
+                          <th>Location</th>
+                          <th>Salary</th>
+                          <th>Posted</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobs.map((j) => (
+                          <tr key={j.jobId}>
+                            <td>{j.title}</td>
+                            <td>{j.location}</td>
+                            <td>{j.salary}</td>
+                            <td>{new Date(j.postedDate).toLocaleDateString()}</td>
+                            <td className="text-nowrap">
+                              <button
+                                className="btn btn-sm btn-outline-primary me-2"
+                                onClick={() => editJob(j)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger me-2"
+                                onClick={() => deleteJob(j.jobId)}
+                              >
+                                Delete
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-dark"
+                                onClick={() => openApplications(j)}
+                              >
+                                Applications
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Profile */}
+          {activeTab === "profile" && (
+            <div className="card shadow-lg border-0 rounded-4">
+              <div className="card-body">
+                <h5 className="fw-bold mb-3">Edit Profile</h5>
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      await api.put(`/Employer/${profile.employerId}`, profile);
+                      alert("Profile updated successfully!");
+                    } catch (err) {
+                      console.error(err);
+                      alert("Failed to update profile.");
+                    }
+                  }}
+                >
+                  {field("First Name", "firstName", "text", profile.firstName, (e) =>
+                    setProfile({ ...profile, firstName: e.target.value })
+                  )}
+                  {field("Company", "companyName", "text", profile.companyName, (e) =>
+                    setProfile({ ...profile, companyName: e.target.value })
+                  )}
+                  {field("Website", "website", "url", profile.website, (e) =>
+                    setProfile({ ...profile, website: e.target.value })
+                  )}
+                  {field("Phone", "phoneNumber", "text", profile.phoneNumber, (e) =>
+                    setProfile({ ...profile, phoneNumber: e.target.value })
+                  )}
+                  <button type="submit" className="btn btn-primary px-4">Save</button>
+                </form>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* APPLICATIONS MODAL */}
+        <div
+          className={`modal fade ${appModalJob ? "show d-block" : ""}`}
+          tabIndex="-1"
+          role="dialog"
+          style={{ background: appModalJob ? "rgba(0,0,0,0.5)" : "transparent" }}
+          onClick={() => setAppModalJob(null)}
+        >
+          <div className="modal-dialog modal-lg" role="document" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-content rounded-4 shadow-lg">
+              <div className="modal-header border-0">
+                <h5 className="modal-title fw-bold">
+                  Applications — {appModalJob?.title}
+                </h5>
+                <button type="button" className="btn-close" onClick={() => setAppModalJob(null)} />
+              </div>
+              <div className="modal-body">
+                {appLoading ? (
+                  <div>Loading applications…</div>
+                ) : applications.length === 0 ? (
+                  <div className="text-muted">No applications yet.</div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="table align-middle table-hover">
+                      <thead className="table-light">
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+
+                          <th>Status</th>
+                          <th>Applied At</th>
+                          <th>Resume</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applications.map((a) => (
+                          <tr key={a.applicationId}>
+                            <td>{a.applicationId}</td>
+                            <td>{a.jobSeeker?.firstName} {a.jobSeeker?.lastName}</td>
+
+                            <td>
+                              <span className="badge bg-secondary">{a.status}</span>
+                            </td>
+                            <td>{new Date(a.appliedAt).toLocaleString()}</td>
+                            <td>
+
+
+                              <span className="badge bg-secondary">{a.resume[0].resumePath}</span>
+                            </td>
+
+                            <td className="text-nowrap">
+                              {a.status === "Applied" ? (
+                                <>
+                                  <button
+                                    className="btn btn-sm btn-success me-2"
+                                    onClick={() => updateAppStatus(a.applicationId, "Accepted")}
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-warning me-2"
+                                    onClick={() => updateAppStatus(a.applicationId, "In Review")}
+                                  >
+                                    In Review
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() => updateAppStatus(a.applicationId, "Rejected")}
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <span
+                                  className={`badge ${a.status === "Accepted"
+                                      ? "bg-success"
+                                      : a.status === "Rejected"
+                                        ? "bg-danger"
+                                        : "bg-warning text-dark"
+                                    }`}
+                                >
+                                  {a.status}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer border-0">
+                <button className="btn btn-secondary px-4" onClick={() => setAppModalJob(null)}>
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+} export default EmployerDashboard;
+
+
+.overview-cards{}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(10px);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Hover animation for job cards */
+.job-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.job-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  border: 1px solid #6366f1;
+}
+
