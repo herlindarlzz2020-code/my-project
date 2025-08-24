@@ -1,0 +1,495 @@
+import React, { useEffect, useState, useContext } from "react";
+import { AuthContext } from "../Context/AuthContext";
+import api from "../services/api";
+import axios from "axios";
+import "bootstrap/dist/css/bootstrap.min.css";
+import "./JobSeekerDashboard.css";
+
+const JobseekerDashboard = () => {
+  const { auth } = useContext(AuthContext);
+  const [jobseeker, setJobseeker] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
+  const [resume, setResume] = useState(null);
+  const [resumeFile, setResumeFile] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
+  const onChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [locationTerm, setLocationTerm] = useState("");
+
+  // fetch profile, apps, resume
+  useEffect(() => {
+    if (!auth?.userId) return;
+    const fetchJobseeker = async () => {
+      try {
+        const res = await api.get(`/JobSeekers/user/${auth.userId}`);
+        setJobseeker(res.data);
+
+        const apps = await api.get(
+          `/Application/jobseeker/${res.data.jobSeekerID}`
+        );
+        setApplications(apps.data);
+
+        const resumeRes = await api.get(
+          `/Resume/jobseeker/${res.data.jobSeekerID}`
+        );
+        setResume(resumeRes.data[0] || null);
+      } catch (err) {
+        console.error("Error loading dashboard:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchJobseeker();
+  }, [auth]);
+
+  useEffect(() => {
+    const fetchJobs = async () => {
+      try {
+        const res = await api.get("/Job");
+        setJobs(res.data);
+      } catch (err) {
+        console.error("Error fetching jobs:", err);
+      }
+    };
+    fetchJobs();
+  }, []);
+
+  const hasApplied = (jobId) =>
+    applications.some((a) => a.jobId === jobId && a.status !== "Withdrawn");
+
+  const handleApply = async (jobId) => {
+    try {
+      await api.post("/Application", {
+        jobId,
+        jobSeekerId: jobseeker.jobSeekerID,
+        status: "Applied",
+        appliedAt: new Date().toISOString(),
+      });
+      alert("Application submitted!");
+      const apps = await api.get(
+        `/Application/jobseeker/${jobseeker.jobSeekerID}`
+      );
+      setApplications(apps.data);
+    } catch (err) {
+      console.error("Error applying:", err);
+      alert("Error applying for job");
+    }
+  };
+
+  const handleResumeUpload = async (e) => {
+    e.preventDefault();
+    if (!resumeFile || resumeFile.trim() === "") {
+      alert("Please enter a resume URL");
+      return;
+    }
+    try {
+      await axios.post(
+        "http://localhost:5285/api/Resume",
+        {
+          jobSeekerId: jobseeker.jobSeekerID,
+          resumePath: resumeFile,
+        },
+        {
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+      // FRONTEND-ONLY: keep upload form hidden by updating local state
+      setResume({
+        resumePath: resumeFile,
+        uploadedAt: new Date().toISOString(),
+        // resumeId will come from backend next refresh; not needed for hiding the form
+      });
+      setResumeFile("");
+      alert("Resume saved successfully!");
+    } catch (error) {
+      console.error("Resume upload error:", error);
+    }
+  };
+
+  const handleDeleteResume = async () => {
+    if (!resume) return;
+    try {
+      await api.delete(`/Resume/${resume.resumeId}`);
+      setResume(null);
+    } catch (err) {
+      console.error("Error deleting resume:", err);
+      alert("Failed to delete resume");
+    }
+  };
+
+  const deleteProfile = async () => {
+    if (!jobseeker) return;
+    const confirmDelete = window.confirm("Are you sure?");
+    if (!confirmDelete) return;
+    try {
+      await api.delete(`/JobSeekers/${jobseeker.jobSeekerID}`);
+      alert("Profile deleted.");
+      setJobseeker(null);
+    } catch (err) {
+      console.error("Error deleting profile:", err);
+    }
+  };
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      await api.put(`/JobSeekers/${jobseeker.jobSeekerID}`, form);
+      alert("Profile updated!");
+      setJobseeker({ ...jobseeker, ...form });
+      setEditing(false);
+    } catch (err) {
+      console.error("Error saving profile:", err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
+        <div className="spinner-border text-primary" role="status"></div>
+      </div>
+    );
+  }
+
+  if (!jobseeker)
+    return <p className="text-center mt-5">No jobseeker data found.</p>;
+
+  const filteredJobs = jobs.filter(
+    (j) =>
+      j.title?.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      j.location?.toLowerCase().includes(locationTerm.toLowerCase())
+  );
+
+  // Limit available jobs to 3 unless searching
+  const visibleJobs =
+    searchTerm || locationTerm ? filteredJobs : filteredJobs.slice(0, 3);
+
+  return (
+    <div className="dashboard-bg py-4">
+      <div className="container">
+        {/* HERO PROFILE */}
+        <div className="hero-card text-white shadow-lg rounded-4 p-4 mb-4">
+          <h2 className="fw-bold m-0">
+            Welcome, {jobseeker.firstName} {jobseeker.lastName} 🎉
+          </h2>
+
+          {!editing ? (
+            <div className="d-flex flex-wrap gap-4 mt-3">
+              <div><strong>🎓 Qualification:</strong> {jobseeker.qualification}</div>
+              <div><strong>💡 Skills:</strong> {jobseeker.skills}</div>
+              <div><strong>📞 Phone:</strong> {jobseeker.phone}</div>
+              <div className="d-flex gap-2">
+                <button
+                  className="btn btn-light btn-sm"
+                  onClick={() => {
+                    setForm(jobseeker);
+                    setEditing(true);
+                  }}
+                >
+                  ✏️ Edit
+                </button>
+                <button className="btn btn-danger btn-sm" onClick={deleteProfile}>
+                  🗑 Delete
+                </button>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={saveProfile} className="mt-3">
+              {["firstName", "lastName", "qualification", "skills", "phone"].map(
+                (f) => (
+                  <input
+                    key={f}
+                    type="text"
+                    name={f}
+                    value={form[f] || ""}
+                    onChange={onChange}
+                    className="form-control mb-2"
+                    placeholder={f}
+                  />
+                )
+              )}
+              <button type="submit" className="btn btn-success btn-sm me-2">
+                Save
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => setEditing(false)}
+              >
+                Cancel
+              </button>
+            </form>
+          )}
+        </div>
+
+        {/* RESUME + SEARCH + JOB LISTINGS (kept as one section to avoid changing structure) */}
+        <div className="surface-card p-4 mb-4 rounded-4">
+          {/* RESUME */}
+          <h5 className="fw-bold section-title">📄 My Resume</h5>
+          {resume ? (
+            <div className="d-flex flex-wrap align-items-center gap-2">
+              <span className="text-truncate">
+                {resume.resumePath} (Uploaded on{" "}
+                {new Date(resume.uploadedAt).toLocaleDateString()})
+              </span>
+              <button
+                className="btn btn-outline-danger btn-sm"
+                onClick={handleDeleteResume}
+              >
+                Delete
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-muted mb-2">No resume uploaded</p>
+              <form onSubmit={handleResumeUpload} className="mt-2">
+                <input
+                  type="text"
+                  placeholder="Enter resume URL"
+                  value={resumeFile || ""}
+                  onChange={(e) => setResumeFile(e.target.value)}
+                  className="form-control mb-2"
+                />
+                <button type="submit" className="btn btn-success btn-sm">
+                  Save Resume
+                </button>
+              </form>
+            </>
+          )}
+
+          {/* JOB SEARCH */}
+          <hr className="my-4" />
+          <h5 className="fw-bold section-title">🔍 Search Jobs</h5>
+          <div className="row g-2">
+            <div className="col-sm-6">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Search by title"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            <div className="col-sm-6">
+              <input
+                type="text"
+                className="form-control"
+                placeholder="Location"
+                value={locationTerm}
+                onChange={(e) => setLocationTerm(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {/* JOB LISTINGS */}
+          <hr className="my-4" />
+          <h5 className="fw-bold section-title">💼 Available Jobs</h5>
+          {visibleJobs.length === 0 ? (
+            <p className="text-muted">No jobs match your search.</p>
+          ) : (
+            <div className="row g-3">
+              {visibleJobs.map((job) => (
+                <div key={job.jobId} className="col-md-6">
+                  <div className="card job-card h-100 rounded-4 shadow-sm">
+                    <div className="card-body">
+                      <h6 className="fw-bold">{job.title}</h6>
+                      <p className="mb-1">{job.companyName} — {job.location}</p>
+                      <p className="small text-muted">💰 {job.salary}</p>
+                      <p className="small">{job.description}</p>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        disabled={hasApplied(job.jobId)}
+                        onClick={() => handleApply(job.jobId)}
+                      >
+                        {hasApplied(job.jobId) ? "✅ Applied" : "🚀 Apply Now"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* APPLICATIONS */}
+        <div className="surface-card p-4 rounded-4">
+          <h5 className="fw-bold mb-3 section-title">📌 My Applications</h5>
+          {applications.length === 0 ? (
+            <p className="text-muted">You haven’t applied to any jobs yet.</p>
+          ) : (
+            <div className="d-flex flex-column gap-4">
+              {applications.map((app) => {
+                const job = jobs.find((j) => j.jobId === app.jobId);
+                return (
+                  <div
+                    key={app.applicationId}
+                    className="p-3 border rounded-3 shadow-sm bg-white"
+                  >
+                    <h6 className="fw-bold">
+                      {job ? job.title : `Job ${app.jobId}`}
+                    </h6>
+                    {job && (
+                      <p className="small text-muted mb-1">
+                        {job.companyName} — {job.location}
+                      </p>
+                    )}
+                    <p className="small text-muted mb-2">
+                      Applied on {new Date(app.appliedAt).toLocaleDateString()}
+                    </p>
+                    <div className="progress-container d-flex justify-content-between align-items-center">
+                      {["Applied", "In Review", "Accepted", "Rejected"].map(
+                        (step, i) => {
+                          const active =
+                            step === "Applied" ||
+                            (step === "In Review" &&
+                              ["In Review", "Accepted", "Rejected"].includes(app.status)) ||
+                            (step === "Accepted" && app.status === "Accepted") ||
+                            (step === "Rejected" && app.status === "Rejected");
+                          return (
+                            <div
+                              key={i}
+                              className="text-center flex-fill position-relative"
+                            >
+                              <div
+                                className={`circle mx-auto mb-2 ${
+                                  active
+                                    ? step === "Accepted"
+                                      ? "bg-success"
+                                      : step === "Rejected"
+                                      ? "bg-danger"
+                                      : "bg-primary"
+                                    : "bg-light border"
+                                }`}
+                              ></div>
+                              <small className={active ? "fw-bold" : "text-muted"}>
+                                {step}
+                              </small>
+                              {i < 3 && (
+                                <div className="bar position-absolute top-50 start-100 translate-middle-y"></div>
+                              )}
+                            </div>
+                          );
+                        }
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default JobseekerDashboard;
+
+/* Page background to match EmployerDashboard */
+.dashboard-bg {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #e0eafc, #cfdef3);
+}
+
+/* Gradient hero (same palette as Employer) */
+.hero-card {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  backdrop-filter: blur(12px);
+}
+
+/* Clean white surfaces */
+.surface-card {
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 8px 22px rgba(0,0,0,0.08);
+}
+
+/* Section headings */
+.section-title {
+  color: #2f2f2f;
+}
+
+/* General cards */
+.card {
+  border-radius: 1rem !important;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 20px rgba(0,0,0,0.10);
+}
+
+/* Job cards */
+.job-card {
+  background: #ffffff;
+  border: 1px solid rgba(99,102,241,0.15);
+}
+.job-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.16);
+  border: 1px solid #6366f1;
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #764ba2);
+  border: none;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #4f46e5, #6d28d9);
+}
+
+.btn-success {
+  background: linear-gradient(135deg, #16a34a, #22c55e);
+  border: none;
+}
+.btn-success:hover {
+  background: linear-gradient(135deg, #15803d, #16a34a);
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, #dc2626, #ef4444);
+  border: none;
+}
+.btn-danger:hover {
+  background: linear-gradient(135deg, #b91c1c, #dc2626);
+}
+
+/* Typography inside cards */
+.card-body h6 {
+  font-size: 1rem;
+  color: #111827;
+}
+.card-body p {
+  font-size: 0.9rem;
+}
+
+/* Application progress tracker */
+.circle {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+}
+.bar {
+  width: 60px;
+  height: 2px;
+  background: #e5e7eb;
+  z-index: -1;
+}
+.progress-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+/* Utility */
+.text-truncate {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
