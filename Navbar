@@ -1,108 +1,4 @@
-import React, { useContext } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { AuthContext } from "../Context/AuthContext";
-import "bootstrap/dist/css/bootstrap.min.css";
-import "./Navbar.css";
-
-const Navbar = () => {
-  const { auth, setAuth } = useContext(AuthContext);
-  const navigate = useNavigate();
-
-  const handleLogout = () => {
-    setAuth(null);
-    navigate("/login");
-  };
-
-  return (
-    <nav className="navbar navbar-expand-lg navbar-dark custom-navbar shadow-sm">
-      <div className="container-fluid">
-        {/* Brand */}
-        <Link className="navbar-brand fw-bold" to="/">
-          CareerLync
-        </Link>
-
-        {/* Toggle for mobile */}
-        <button
-          className="navbar-toggler"
-          type="button"
-          data-bs-toggle="collapse"
-          data-bs-target="#navbarNav"
-        >
-          <span className="navbar-toggler-icon"></span>
-        </button>
-
-        {/* Nav Links */}
-        <div className="collapse navbar-collapse" id="navbarNav">
-          <ul className="navbar-nav ms-auto">
-            <li className="nav-item">
-              <Link className="nav-link" to="/">Home</Link>
-            </li>
-
-            {!auth && (
-              <>
-                <li className="nav-item">
-                  <Link className="nav-link" to="/login">Login</Link>
-                </li>
-                <li className="nav-item">
-                  <Link className="nav-link" to="/register">Register</Link>
-                </li>
-              </>
-            )}
-
-            {auth?.role === "Employer" && (
-              <li className="nav-item">
-                <Link className="nav-link" to="/employer/dashboard">Employer Dashboard</Link>
-              </li>
-            )}
-
-            {auth?.role === "JobSeeker" && (
-              <li className="nav-item">
-                <Link className="nav-link" to="/jobseeker/dashboard">Jobseeker Dashboard</Link>
-              </li>
-            )}
-
-            {auth && (
-              <li className="nav-item">
-                <button className="btn btn-light btn-sm ms-3" onClick={handleLogout}>
-                  Logout
-                </button>
-              </li>
-            )}
-          </ul>
-        </div>
-      </div>
-    </nav>
-  );
-};
-
-export default Navbar;
-
-.custom-navbar {
-  background: linear-gradient(135deg, #6a11cb, #2575fc);
-  padding: 0.8rem 1.2rem;
-}
-
-.navbar-brand {
-  font-size: 1.3rem;
-  color: #fff !important;
-}
-
-.nav-link {
-  color: #f1f1f1 !important;
-  margin: 0 0.5rem;
-  transition: color 0.2s ease;
-}
-
-.nav-link:hover {
-  color: #ffd700 !important; /* golden highlight */
-}
-
-.btn-light {
-  border-radius: 20px;
-  font-weight: 500;
-}
-
-import React from "react";
+  import React from "react";
 import { Link } from "react-router-dom";
 import { AuthContext } from "../Context/AuthContext";
 import "./Navbar.css";
@@ -111,38 +7,107 @@ export default function Navbar() {
   const { auth, logout } = React.useContext(AuthContext);
 
   return (
-    <nav className="navbar navbar-expand-lg navbar-dark bg-dark px-3 shadow-sm">
-      <Link to="/" className="navbar-brand fw-bold">
+    <nav className="navbar navbar-expand-lg custom-navbar px-3 shadow-sm">
+      <Link to="/" className="navbar-brand fw-bold text-white">
         CareerLync
       </Link>
 
-      <div className="ms-auto d-flex align-items-center gap-2">
-        {auth ? (
-          <>
-            
-            <button className="btn btn-outline-light btn-sm" onClick={logout}>
-              Logout
-            </button>
-          </>
-        ) : (
-          <>
-            <Link to="/login" className="btn btn-outline-light btn-sm">
-              Login
-            </Link>
-            <Link to="/register" className="btn btn-primary btn-sm">
-              Register
-            </Link>
-          </>
-        )}
+      <button
+        className="navbar-toggler"
+        type="button"
+        data-bs-toggle="collapse"
+        data-bs-target="#navbarNav"
+      >
+        <span className="navbar-toggler-icon"></span>
+      </button>
+
+      <div className="collapse navbar-collapse" id="navbarNav">
+        <ul className="navbar-nav ms-auto d-flex align-items-center gap-2">
+          {!auth ? (
+            <>
+              <li className="nav-item">
+                <Link to="/login" className="btn btn-outline-light btn-sm">
+                  Login
+                </Link>
+              </li>
+              <li className="nav-item">
+                <Link to="/register" className="btn btn-primary btn-sm">
+                  Register
+                </Link>
+              </li>
+            </>
+          ) : (
+            <>
+              {auth.role === "employer" && (
+                <li className="nav-item">
+                  <Link to="/employer/dashboard" className="nav-link text-white">
+                    Employer Dashboard
+                  </Link>
+                </li>
+              )}
+              {auth.role === "jobseeker" && (
+                <li className="nav-item">
+                  <Link to="/jobseeker/dashboard" className="nav-link text-white">
+                    Jobseeker Dashboard
+                  </Link>
+                </li>
+              )}
+              <li className="nav-item">
+                <button className="btn btn-light btn-sm ms-2" onClick={logout}>
+                  Logout
+                </button>
+              </li>
+            </>
+          )}
+        </ul>
       </div>
     </nav>
   );
 }
+
+/* Gradient background */
+.custom-navbar {
+  background: linear-gradient(135deg, #6a11cb, #2575fc);
+}
+
+/* Brand */
+.navbar-brand {
+  font-size: 1.4rem;
+  color: #fff !important;
+}
+
+/* Nav links */
+.nav-link {
+  color: #f1f1f1 !important;
+  transition: color 0.2s ease;
+}
+
+.nav-link:hover {
+  color: #ffd700 !important; /* golden highlight */
+}
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #6366f1, #9333ea);
+  border: none;
+}
+.btn-primary:hover {
+  background: linear-gradient(135deg, #4f46e5, #7e22ce);
+}
+
+.btn-outline-light {
+  border: 1px solid #fff;
+  color: #fff;
+}
+.btn-outline-light:hover {
+  background: #fff;
+  color: #2575fc;
+}
+
 import React from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
-import Navbar from "./Components/Navbar";  // 👈 import here
+import Navbar from "./Components/Navbar";
 import HomePage from "./Pages/HomePage";
-
 import Register from "./Pages/Register";
 import EmployerDashboard from './Pages/EmployerDashboard';
 import JobseekerDashboard from './Pages/JobseekerDashboard';
@@ -150,27 +115,24 @@ import { AuthProvider, AuthContext } from "./Context/AuthContext";
 import Login from "./Pages/Login";
 import ProfileSetup from "./Pages/ProfileSetup";
 
-
 function App() {
   return (
     <AuthProvider>
       <Router>
-        
-        <Navbar /> 
-          {/* 👈 reusable navbar */}
-        <div >
+        <Navbar />
+        <div className="pt-4"> {/* spacing below navbar */}
           <Routes>
-            
+            <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="/profile-setup" element ={<ProfileSetup />} />
+            <Route path="/profile-setup" element={<ProfileSetup />} />
 
             {/* Protected routes */}
             <Route
               path="/employer/dashboard"
               element={
                 <RequireAuth role="employer">
-               <EmployerDashboard />
+                  <EmployerDashboard />
                 </RequireAuth>
               }
             />
@@ -199,4 +161,3 @@ function RequireAuth({ children, role }) {
 }
 
 export default App;
-
