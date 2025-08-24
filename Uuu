@@ -60,10 +60,18 @@ function EmployerDashboard() {
     run();
   }, [auth]);
 
-  const onFormChange = (e) => setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+  const onFormChange = (e) =>
+    setForm((f) => ({ ...f, [e.target.name]: e.target.value }));
+
   const resetForm = () => {
     setEditingJobId(null);
-    setForm({ title: "", description: "", qualifications: "", location: "", salary: "" });
+    setForm({
+      title: "",
+      description: "",
+      qualifications: "",
+      location: "",
+      salary: "",
+    });
   };
 
   const submitJob = async (e) => {
@@ -169,15 +177,26 @@ function EmployerDashboard() {
   return (
     <div className="dashboard-bg">
       <div className="container py-4">
-        {/* HERO PROFILE SECTION */}
+        {/* HERO */}
         <div className="hero-card">
-          <h2 className="fw-bold mb-2">Welcome, {profile?.firstName || "Employer"}!</h2>
-          <p className="mb-0">
-            <strong>Company:</strong> {profile.companyName} |{" "}
+          <div className="hero-top">
+            <h2 className="fw-bold mb-2">
+              Welcome, {profile?.firstName || "Employer"}!
+            </h2>
+            {profile?.companyName && (
+              <span className="company-chip">{profile.companyName}</span>
+            )}
+          </div>
+          <p className="mb-1 text-hero-sub">
             <strong>Phone:</strong> {profile.phoneNumber}
           </p>
           {profile.website && (
-            <a href={profile.website} target="_blank" rel="noreferrer" className="hero-link">
+            <a
+              href={profile.website}
+              target="_blank"
+              rel="noreferrer"
+              className="hero-link"
+            >
               {profile.website}
             </a>
           )}
@@ -185,22 +204,22 @@ function EmployerDashboard() {
 
         {/* STATS */}
         <div className="row justify-content-center mt-4 g-4">
-          <div className="col-md-4">
+          <div className="col-sm-6 col-md-4">
             <div className="stat-card">
-              <h6 className="text-muted">Jobs Posted</h6>
-              <h1 className="fw-bold text-primary">{totalJobs}</h1>
+              <div className="stat-label">Jobs Posted</div>
+              <div className="stat-value text-primary">{totalJobs}</div>
             </div>
           </div>
-          <div className="col-md-4">
+          <div className="col-sm-6 col-md-4">
             <div className="stat-card">
-              <h6 className="text-muted">Active Jobs</h6>
-              <h1 className="fw-bold text-success">{activeJobs}</h1>
+              <div className="stat-label">Active Jobs</div>
+              <div className="stat-value text-success">{activeJobs}</div>
             </div>
           </div>
         </div>
 
-        {/* NAV TABS */}
-        <ul className="nav nav-pills mt-5 gap-2 justify-content-center">
+        {/* NAV */}
+        <ul className="nav nav-pills mt-5 gap-2 justify-content-center pretty-tabs">
           {["overview", "post", "manage", "profile"].map((tab) => (
             <li key={tab} className="nav-item">
               <button
@@ -224,27 +243,42 @@ function EmployerDashboard() {
           ))}
         </ul>
 
-        {/* TAB CONTENTS */}
+        {/* CONTENT */}
         <div className="mt-4">
-          {/* Overview */}
+          {/* OVERVIEW */}
           {activeTab === "overview" && (
             <div className="row g-4">
               {jobs.length === 0 ? (
-                <p className="text-muted">No jobs yet. Post your first job!</p>
+                <p className="text-muted">
+                  No jobs yet. Post your first job!
+                </p>
               ) : (
                 jobs.slice(0, 5).map((j) => (
                   <div key={j.jobId} className="col-md-6">
                     <div className="overview-card">
-                      <h5 className="fw-bold">{j.title}</h5>
-                      <p className="small text-muted mb-1">
-                        {j.location} • ₹{j.salary}
-                      </p>
-                      <p>{j.description}</p>
+                      <div className="overview-head">
+                        <h5 className="fw-bold mb-0">{j.title}</h5>
+                        <span className="pill">{j.location}</span>
+                      </div>
+                      <div className="overview-sub">
+                        <span className="money">₹{j.salary}</span>
+                        <span className="dot">•</span>
+                        <span className="date">
+                          {new Date(j.postedDate).toLocaleDateString()}
+                        </span>
+                      </div>
+                      <p className="overview-desc">{j.description}</p>
                       <div className="d-flex justify-content-end gap-2">
-                        <button className="btn btn-sm btn-outline-primary" onClick={() => editJob(j)}>
+                        <button
+                          className="btn btn-sm btn-outline-primary"
+                          onClick={() => editJob(j)}
+                        >
                           Edit
                         </button>
-                        <button className="btn btn-sm btn-outline-dark" onClick={() => openApplications(j)}>
+                        <button
+                          className="btn btn-sm btn-outline-dark"
+                          onClick={() => openApplications(j)}
+                        >
                           Applications
                         </button>
                       </div>
@@ -255,73 +289,574 @@ function EmployerDashboard() {
             </div>
           )}
 
-          {/* Other tabs remain same (Post, Manage, Profile, Applications Modal) */}
+          {/* POST / EDIT */}
+          {activeTab === "post" && (
+            <div className="panel-card">
+              <div className="panel-head">
+                <h5 className="fw-bold mb-0">
+                  {editingJobId ? "Edit Job" : "Post New Job"}
+                </h5>
+              </div>
+              <div className="panel-body">
+                <form onSubmit={submitJob}>
+                  {field("Title", "title", "text", form.title, onFormChange)}
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold text-secondary">
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={form.description}
+                      onChange={onFormChange}
+                      className="form-control rounded-3 shadow-sm"
+                      rows={4}
+                      required
+                    />
+                  </div>
+                  {field(
+                    "Qualifications",
+                    "qualifications",
+                    "text",
+                    form.qualifications,
+                    onFormChange
+                  )}
+                  {field(
+                    "Location",
+                    "location",
+                    "text",
+                    form.location,
+                    onFormChange
+                  )}
+                  {field(
+                    "Salary",
+                    "salary",
+                    "number",
+                    form.salary,
+                    onFormChange
+                  )}
+                  <div className="d-flex gap-2">
+                    <button type="submit" className="btn btn-primary px-4">
+                      {editingJobId ? "Update Job" : "Post Job"}
+                    </button>
+                    {editingJobId && (
+                      <button
+                        type="button"
+                        className="btn btn-outline-secondary px-4"
+                        onClick={resetForm}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* MANAGE JOBS */}
+          {activeTab === "manage" && (
+            <div className="panel-card">
+              <div className="panel-head">
+                <h5 className="fw-bold mb-0">Manage Jobs</h5>
+              </div>
+              <div className="panel-body">
+                {jobs.length === 0 ? (
+                  <p className="text-muted">No jobs found.</p>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="modern-table">
+                      <thead>
+                        <tr>
+                          <th>Title</th>
+                          <th>Location</th>
+                          <th>Salary</th>
+                          <th>Posted</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {jobs.map((j) => (
+                          <tr key={j.jobId}>
+                            <td>{j.title}</td>
+                            <td>{j.location}</td>
+                            <td>₹{j.salary}</td>
+                            <td>
+                              {new Date(j.postedDate).toLocaleDateString()}
+                            </td>
+                            <td className="text-nowrap">
+                              <button
+                                className="btn btn-sm btn-outline-primary me-2"
+                                onClick={() => editJob(j)}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-danger me-2"
+                                onClick={() => deleteJob(j.jobId)}
+                              >
+                                Delete
+                              </button>
+                              <button
+                                className="btn btn-sm btn-outline-dark"
+                                onClick={() => openApplications(j)}
+                              >
+                                Applications
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* PROFILE */}
+          {activeTab === "profile" && (
+            <div className="panel-card">
+              <div className="panel-head">
+                <h5 className="fw-bold mb-0">Edit Profile</h5>
+              </div>
+              <div className="panel-body">
+                <form
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    try {
+                      await api.put(`/Employer/${profile.employerId}`, profile);
+                      alert("Profile updated successfully!");
+                    } catch (err) {
+                      console.error(err);
+                      alert("Failed to update profile.");
+                    }
+                  }}
+                >
+                  {field(
+                    "First Name",
+                    "firstName",
+                    "text",
+                    profile.firstName,
+                    (e) =>
+                      setProfile({ ...profile, firstName: e.target.value })
+                  )}
+                  {field(
+                    "Company",
+                    "companyName",
+                    "text",
+                    profile.companyName,
+                    (e) =>
+                      setProfile({ ...profile, companyName: e.target.value })
+                  )}
+                  {field(
+                    "Website",
+                    "website",
+                    "url",
+                    profile.website,
+                    (e) => setProfile({ ...profile, website: e.target.value })
+                  )}
+                  {field(
+                    "Phone",
+                    "phoneNumber",
+                    "text",
+                    profile.phoneNumber,
+                    (e) =>
+                      setProfile({ ...profile, phoneNumber: e.target.value })
+                  )}
+                  <button type="submit" className="btn btn-primary px-4">
+                    Save
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
+
+        {/* APPLICATIONS MODAL */}
+        <div
+          className={`modal fade ${appModalJob ? "show d-block" : ""}`}
+          tabIndex="-1"
+          role="dialog"
+          style={{
+            background: appModalJob ? "rgba(0,0,0,0.5)" : "transparent",
+          }}
+          onClick={() => setAppModalJob(null)}
+        >
+          <div
+            className="modal-dialog modal-lg"
+            role="document"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content rounded-4 shadow-lg">
+              <div className="modal-header border-0 pb-0">
+                <h5 className="modal-title fw-bold text-primary">
+                  Applications — {appModalJob?.title}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setAppModalJob(null)}
+                />
+              </div>
+              <div className="modal-body">
+                {appLoading ? (
+                  <div>Loading applications…</div>
+                ) : applications.length === 0 ? (
+                  <div className="text-muted">No applications yet.</div>
+                ) : (
+                  <div className="table-responsive">
+                    <table className="modern-table">
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>Name</th>
+                          <th>Status</th>
+                          <th>Applied At</th>
+                          <th>Resume</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {applications.map((a) => (
+                          <tr key={a.applicationId}>
+                            <td>{a.applicationId}</td>
+                            <td>
+                              {a.jobSeeker?.firstName} {a.jobSeeker?.lastName}
+                            </td>
+                            <td>
+                              <span
+                                className={`status-badge ${
+                                  a.status === "Accepted"
+                                    ? "accepted"
+                                    : a.status === "Rejected"
+                                    ? "rejected"
+                                    : a.status === "In Review"
+                                    ? "review"
+                                    : "applied"
+                                }`}
+                              >
+                                {a.status}
+                              </span>
+                            </td>
+                            <td>{new Date(a.appliedAt).toLocaleString()}</td>
+                            <td>
+                              {a?.resume?.[0]?.resumePath ? (
+                                <a
+                                  href={a.resume[0].resumePath}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="resume-link"
+                                >
+                                  View Resume
+                                </a>
+                              ) : (
+                                <span className="text-muted">No resume</span>
+                              )}
+                            </td>
+                            <td className="text-nowrap">
+                              {a.status === "Applied" ? (
+                                <>
+                                  <button
+                                    className="btn btn-sm btn-success me-2"
+                                    onClick={() =>
+                                      updateAppStatus(
+                                        a.applicationId,
+                                        "Accepted"
+                                      )
+                                    }
+                                  >
+                                    Accept
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-warning me-2"
+                                    onClick={() =>
+                                      updateAppStatus(
+                                        a.applicationId,
+                                        "In Review"
+                                      )
+                                    }
+                                  >
+                                    In Review
+                                  </button>
+                                  <button
+                                    className="btn btn-sm btn-danger"
+                                    onClick={() =>
+                                      updateAppStatus(
+                                        a.applicationId,
+                                        "Rejected"
+                                      )
+                                    }
+                                  >
+                                    Reject
+                                  </button>
+                                </>
+                              ) : (
+                                <span
+                                  className={`status-badge ${
+                                    a.status === "Accepted"
+                                      ? "accepted"
+                                      : a.status === "Rejected"
+                                      ? "rejected"
+                                      : "review"
+                                  }`}
+                                >
+                                  {a.status}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer border-0">
+                <button
+                  className="btn btn-secondary px-4"
+                  onClick={() => setAppModalJob(null)}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {/* /MODAL */}
       </div>
     </div>
   );
 }
-export default EmployerDashboard;/* Background */
-.dashboard-bg {
-  min-height: 100vh;
-  background: #f9fafb;
-  padding-bottom: 50px;
+export default EmployerDashboard;
+
+
+/* ===== Theme Tokens ===== */
+:root {
+  --bg-grad-1: #eef2ff;  /* soft indigo-50 */
+  --bg-grad-2: #f8fafc;  /* slate-50 */
+  --card-bg: #ffffff;
+  --muted: #6b7280;      /* gray-500 */
+  --ring: rgba(99,102,241,0.45); /* indigo-500 */
+  --border: #e5e7eb;     /* gray-200 */
 }
 
-/* Hero section */
+/* ===== Page Background ===== */
+.dashboard-bg {
+  min-height: 100vh;
+  background: radial-gradient(1200px 600px at 10% -10%, #e9ecff 10%, transparent 60%),
+              radial-gradient(900px 500px at 100% 10%, #f1f5ff 10%, transparent 60%),
+              linear-gradient(135deg, var(--bg-grad-1), var(--bg-grad-2));
+  padding-bottom: 56px;
+}
+
+/* ===== Hero ===== */
 .hero-card {
+  background: linear-gradient(135deg, #6366f1, #7c3aed);
+  color: #fff;
+  border-radius: 20px;
   padding: 24px;
-  border-radius: 16px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 10px 30px rgba(99,102,241,0.35);
+}
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.company-chip {
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.25);
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+.text-hero-sub {
+  opacity: 0.95;
 }
 .hero-link {
-  color: white;
+  color: #ffffff;
   text-decoration: underline;
 }
 
-/* Stat cards */
+/* ===== Stats ===== */
 .stat-card {
-  background: white;
-  border-radius: 16px;
-  padding: 24px;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-top: 3px solid #6366f1;
-  transition: transform 0.2s ease;
-}
-.stat-card:hover {
-  transform: translateY(-4px);
-}
-
-/* Nav tabs */
-.nav-pills .nav-link {
-  border-radius: 20px;
-  padding: 8px 20px;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-.nav-pills .nav-link.active {
-  background-color: #fff !important;
-  color: #333 !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border: 1px solid #e5e7eb;
-}
-.nav-pills .nav-link:hover {
-  background-color: #f3f4f6;
-}
-
-/* Overview cards */
-.overview-card {
-  background: white;
+  background: var(--card-bg);
   border-radius: 16px;
   padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.08);
+  border: 1px solid var(--border);
+}
+.stat-label {
+  color: var(--muted);
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+.stat-value {
+  font-size: 2rem;
+  font-weight: 800;
+}
+
+/* ===== Tabs ===== */
+.pretty-tabs .nav-link {
+  border-radius: 9999px;
+  padding: 10px 18px;
+  background: transparent;
+  color: #374151;
+  border: 1px solid transparent;
+  transition: all .2s ease;
+}
+.pretty-tabs .nav-link:hover {
+  border-color: #e5e7eb;
+  background: #ffffff;
+}
+.pretty-tabs .nav-link.active {
+  background: #ffffff;
+  border-color: var(--ring);
+  box-shadow: 0 8px 22px rgba(99,102,241,0.18);
+  color: #111827;
+  font-weight: 700;
+}
+
+/* ===== Panels (Post, Manage, Profile) ===== */
+.panel-card {
+  background: var(--card-bg);
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 12px 36px rgba(0,0,0,0.08);
+}
+.panel-head {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  background: #f9fafb;
+}
+.panel-body {
+  padding: 20px;
+}
+
+/* ===== Overview Cards ===== */
+.overview-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  box-shadow: 0 8px 26px rgba(0,0,0,0.07);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
 }
 .overview-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  border: 1px solid #6366f1;
+  transform: translateY(-4px);
+  border-color: var(--ring);
+  box-shadow: 0 12px 34px rgba(99,102,241,0.18);
+}
+.overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.pill {
+  background: #eef2ff;
+  color: #3730a3;
+  border: 1px solid #c7d2fe;
+  border-radius: 9999px;
+  padding: 6px 10px;
+  font-weight: 600;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+.overview-sub {
+  margin-top: 6px;
+  color: var(--muted);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.overview-sub .money { color: #0f766e; }
+.overview-sub .date { letter-spacing: .2px; }
+.overview-sub .dot { opacity: .5; }
+.overview-desc {
+  margin: 10px 0 14px;
+  color: #374151;
+}
+
+/* ===== Modern Table (Manage + Modal) ===== */
+.modern-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 10px;
+}
+.modern-table thead tr {
+  background: #f3f4f6;
+}
+.modern-table th {
+  text-align: left;
+  padding: 12px 14px;
+  color: #374151;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.modern-table td {
+  background: #ffffff;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+.modern-table tbody tr td:first-child {
+  border-left: 1px solid var(--border);
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+.modern-table tbody tr td:last-child {
+  border-right: 1px solid var(--border);
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+.modern-table tbody tr:hover td {
+  box-shadow: 0 6px 20px rgba(0,0,0,0.08);
+  border-color: var(--ring);
+}
+
+/* Resume link */
+.resume-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+.resume-link:hover { text-decoration: underline; }
+
+/* ===== Status Badges ===== */
+.status-badge {
+  padding: 6px 12px;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.status-badge.applied {
+  background: #e0f2fe;
+  color: #075985;
+  border-color: #bae6fd;
+}
+.status-badge.review {
+  background: #fef9c3;
+  color: #854d0e;
+  border-color: #fde68a;
+}
+.status-badge.accepted {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+.status-badge.rejected {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+/* ===== Modal polish ===== */
+.modal-content {
+  border: 1px solid var(--border);
 }
